@@ -335,3 +335,8 @@ input:focus-visible {
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
+
+/* Observers retain the authoritative remote grid without sending RESIZE. */
+.pane[data-observe="true"] .terminal {
+  overflow: auto;
+}

@@ -116,6 +116,12 @@ export type TerminalRecord = {
   title?: string;
   state: string;
   status?: unknown;
+  cwd?: string;
+  parent?: string | null;
+  labels?: Record<string, string>;
+  turn?: number | string;
+  status_ms?: number | null;
+  reported?: boolean;
   records?: unknown;
   cols: number;
   rows: number;
@@ -167,6 +173,7 @@ export class TerminalStore {
     else if (old) {
       const next = { ...old };
       if (p.type === "foreground") next.foreground = p.data;
+      else if (p.type === "turn") next.turn = data.turn as number | string;
       else {
         Object.assign(next, data);
         if (p.type === "finished") next.state = "finished";
@@ -193,6 +200,9 @@ export class CoreClient {
   private pending = new Map<number, Pending>();
   private streams = new Map<number, (f: Frame) => void>();
   private disposed = false;
+  methods: string[] = [];
+  features: string[] = [];
+  machineName = "当前机器";
   onEvent: ((event: CoreEvent) => void) | null = null;
   onDisconnect: ((reason: string) => void) | null = null;
 
@@ -233,12 +243,21 @@ export class CoreClient {
         }
       };
     });
-    await this.call<{ framed: boolean; generation: number }>(
+    await this.call<{
+      framed: boolean;
+      generation: number;
+      methods?: string[];
+      features?: string[];
+      core?: { name: string };
+    }>(
       "hello",
       { framed: true, generation: 1, features: ["resize_notifications"] },
       (r) => {
         if (!r.framed || r.generation !== 1)
           throw new Error("Unsupported core generation");
+        this.methods = r.methods || [];
+        this.features = r.features || [];
+        this.machineName = r.core?.name || "当前机器";
         this.framed = true;
       },
     );

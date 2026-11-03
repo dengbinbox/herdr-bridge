@@ -24,7 +24,72 @@ function frame(channel: number, kind: number, payload: Buffer) {
   payload.copy(b, 9);
   return b;
 }
-async function fixture(page: Page) {
+async function fixture(page: Page, rich = false) {
+  const records = rich
+    ? [
+        {
+          ...record,
+          address: "t1",
+          title: "Implementation",
+          cwd: "/project",
+          status: { state: "working" },
+          turn: 1,
+          labels: {},
+        },
+        {
+          ...record,
+          address: "t2",
+          title: "Review",
+          cwd: "/review",
+          status: { state: "error" },
+          turn: 2,
+          labels: { "herdr.pinned": "1" },
+        },
+      ]
+    : [record];
+  let seq = 1;
+  const document = {
+    spaces: [
+      {
+        id: "s1",
+        name: "Project Alpha",
+        folder: "/project",
+        tabs: [
+          {
+            id: "tab1",
+            name: "Build",
+            root: {
+              id: "root",
+              type: "row",
+              children: [
+                { id: "p1", type: "block", content: { terminal: "t1" } },
+                { id: "p2", type: "block", content: { terminal: "t2" } },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        id: "s2",
+        name: "Project Beta",
+        folder: "/review",
+        tabs: [
+          {
+            id: "tab2",
+            name: "Review",
+            root: { id: "p3", type: "block", content: { terminal: "t2" } },
+          },
+        ],
+      },
+    ],
+  };
+  const output = (text: string, code = 0) => ({
+    code,
+    stdout: Buffer.from(text).toString("base64"),
+    stderr: "",
+    timed_out: false,
+    truncated: false,
+  });
   let loggedIn = false,
     nextChannel = 10;
   const calls: { method: string; params: Record<string, unknown> }[] = [],
@@ -95,7 +160,20 @@ async function fixture(page: Page) {
             JSON.stringify({
               jsonrpc: "2.0",
               id: hello.id,
-              result: { framed: true, generation: 1 },
+              result: {
+                framed: true,
+                generation: 1,
+                core: { name: "Development" },
+                methods: rich
+                  ? [
+                      "doc.get",
+                      "machine.list",
+                      "machine.exec",
+                      "file.read",
+                      "terminal.label",
+                    ]
+                  : [],
+              },
             }) + "\n",
           ),
         );
@@ -112,14 +190,45 @@ async function fixture(page: Page) {
           calls.push(rpc);
           let result: unknown = {};
           if (rpc.method === "events.subscribe")
-            result = { channel: 2, seq: 1, terminals: [record] };
-          if (rpc.method === "terminal.list") result = { terminals: [record] };
+            result = { channel: 2, seq: 1, terminals: records };
+          if (rpc.method === "terminal.list") result = { terminals: records };
           if (rpc.method === "terminal.attach")
             result = {
               channel: nextChannel,
-              terminal: record,
+              terminal:
+                records.find((t) => t.address === rpc.params.terminal) ||
+                record,
               resize_notifications: !!rpc.params.observe,
             };
+          if (rich) {
+            if (rpc.method === "doc.get")
+              result = { value: document, version: 1 };
+            if (rpc.method === "machine.list") result = { machines: [] };
+            if (rpc.method === "file.read")
+              result = {
+                text: "Workspace preview\nsecond line",
+                first: 1,
+                last: 2,
+                lines: 2,
+              };
+            if (rpc.method === "machine.exec") {
+              const argv = rpc.params.argv as string[];
+              if (argv[0] === "sh") result = output("d\0src\0f\0README.md\0");
+              else if (argv.includes("--show-toplevel"))
+                result = output(rpc.params.cwd + "\n");
+              else if (argv.includes("--verify")) result = output("abc123\n");
+              else if (argv.includes("status"))
+                result = output(
+                  argv.includes("--branch") ? "## main\n" : " M README.md\0",
+                );
+              else if (argv.includes("--numstat"))
+                result = output("1\t1\tREADME.md\0");
+              else
+                result = output(
+                  "--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old content\n+new content\n",
+                );
+            }
+          }
           ws.send(
             frame(
               0,
@@ -129,6 +238,32 @@ async function fixture(page: Page) {
               ),
             ),
           );
+          if (rich && rpc.method === "terminal.label") {
+            const t = records.find(
+              (t) => t.address === rpc.params.terminal,
+            ) as (typeof records)[number] & { labels: Record<string, string> };
+            if (t) {
+              t.labels = { ...t.labels, ...rpc.params.labels };
+              ws.send(
+                frame(
+                  2,
+                  0,
+                  Buffer.from(
+                    JSON.stringify({
+                      jsonrpc: "2.0",
+                      method: "event",
+                      params: {
+                        seq: ++seq,
+                        type: "labels",
+                        terminal: t.address,
+                        data: { labels: t.labels },
+                      },
+                    }) + "\n",
+                  ),
+                ),
+              );
+            }
+          }
           if (rpc.method === "terminal.attach") {
             if (rpc.params.observe) {
               const size = Buffer.alloc(4);
@@ -205,4 +340,59 @@ test("observation never types or resizes; explicit end requires confirmation", a
   await expect
     .poll(() => state.calls.filter((c) => c.method === "terminal.kill").length)
     .toBe(1);
+});
+
+test("native spaces, agent pins, focused directory, file and diff preview", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const state = await fixture(page, true);
+  await expect(
+    page.getByRole("button", { name: /空间 Project Alpha/ }),
+  ).toBeVisible();
+  await expect(page.locator(".xterm-screen")).toHaveCount(2);
+  await expect(page.getByRole("button", { name: /Pinned/ })).toBeVisible();
+  await page.getByRole("button", { name: "Unpin", exact: true }).click();
+  await expect(page.getByRole("button", { name: /Pinned/ })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /Needs you/ }).first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /空间 Project Beta/ }).click();
+  await expect(page.locator(".xterm-screen")).toHaveCount(1);
+  await expect
+    .poll(
+      () =>
+        state.calls
+          .filter(
+            (c) =>
+              c.method === "machine.exec" &&
+              (c.params.argv as string[])[0] === "sh",
+          )
+          .at(-1)?.params.cwd,
+    )
+    .toBe("/review");
+  await page.getByRole("button", { name: /README.md/ }).click();
+  await expect(
+    page.getByText("Workspace preview", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "Changes", exact: true }).click();
+  await page.getByRole("button", { name: /README.md/ }).click();
+  await expect(page.getByText("+new content", { exact: true })).toBeVisible();
+  expect(state.calls.some((c) => c.method === "doc.set")).toBe(false);
+  await page.screenshot({ path: "test-results/workspace-1280.png" });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.screenshot({ path: "test-results/workspace-1920.png" });
+  await page.setViewportSize({ width: 640, height: 800 });
+  await page
+    .getByRole("button", { name: "Files / Changes", exact: true })
+    .click();
+  await expect(
+    page.getByRole("tab", { name: "Files", exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({ path: "test-results/workspace-narrow.png" });
 });

@@ -206,7 +206,7 @@ export function TerminalPane({
       view.current.terminal.resize(grid.cols, grid.rows);
   }, [observe, grid?.cols, grid?.rows]);
   return (
-    <section className={styles.pane}>
+    <section className={styles.pane} data-observe={observe}>
       <header>
         <strong>{id}</strong>
         <span>{observe ? "只读观察" : "共享输入 · 多窗口可能共同控制"}</span>
