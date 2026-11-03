@@ -1,0 +1,221 @@
+name: release
+
+on:
+  push:
+    tags: ['v[0-9]*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/dengbinbox/herdr-bridge
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  client:
+    needs: verify
+    name: client-${{ matrix.os }}-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            os: linux
+            arch: amd64
+            extension: ''
+          - runner: ubuntu-24.04-arm
+            os: linux
+            arch: arm64
+            extension: ''
+          - runner: macos-15-intel
+            os: darwin
+            arch: amd64
+            extension: ''
+          - runner: macos-15
+            os: darwin
+            arch: arm64
+            extension: ''
+          - runner: windows-2025
+            os: windows
+            arch: amd64
+            extension: .exe
+          - runner: windows-11-arm
+            os: windows
+            arch: arm64
+            extension: .exe
+    runs-on: ${{ matrix.runner }}
+    env:
+      CGO_ENABLED: '0'
+      EXPECTED_OS: ${{ matrix.os }}
+      EXPECTED_ARCH: ${{ matrix.arch }}
+      BINARY_EXTENSION: ${{ matrix.extension }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          architecture: ${{ matrix.arch == 'amd64' && 'x64' || 'arm64' }}
+          cache: true
+      - name: Verify native toolchain and version
+        run: |
+          test "$(go env GOHOSTOS)" = "$EXPECTED_OS"
+          test "$(go env GOHOSTARCH)" = "$EXPECTED_ARCH"
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]
+      - run: go mod verify
+      - run: go test ./client/... ./internal/...
+      - name: Build client and include configuration guide
+        run: |
+          mkdir -p dist/package
+          go build -trimpath -ldflags="-s -w" -o "dist/package/herdr-bridge${BINARY_EXTENSION}" ./client
+          cp examples/client.json dist/package/config.example.json
+          cp client/README.md dist/package/README.md
+          printf '%s\n%s\n' "$RELEASE_TAG" "$GITHUB_SHA" > dist/package/VERSION
+      - name: Archive Unix client
+        if: runner.os != 'Windows'
+        run: tar -czf "dist/herdr-bridge_${RELEASE_TAG}_${EXPECTED_OS}_${EXPECTED_ARCH}.tar.gz" -C dist/package .
+      - name: Archive Windows client
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/package/* -DestinationPath "dist/herdr-bridge_${env:RELEASE_TAG}_${env:EXPECTED_OS}_${env:EXPECTED_ARCH}.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: client-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  server:
+    needs: verify
+    name: server-linux-${{ matrix.arch }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+            machine: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            machine: aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify native runner
+        env:
+          EXPECTED_MACHINE: ${{ matrix.machine }}
+        run: test "$(uname -m)" = "$EXPECTED_MACHINE"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build native server image including Web UI
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.description=Herdr Bridge server with Web UI
+          cache-from: type=gha,scope=server-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=server-${{ matrix.arch }}
+      - name: Record image digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p digests
+          touch "digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.arch }}
+          path: digests/*
+          if-no-files-found: error
+          retention-days: 7
+
+  server-manifest:
+    needs: server
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-*
+          path: digests
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish multi-architecture package
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          refs=()
+          for digest in digests/*; do
+            refs+=("${IMAGE}@sha256:$(basename "$digest")")
+          done
+          test "${#refs[@]}" -eq 2
+          tags=(--tag "${IMAGE}:${RELEASE_TAG}")
+          if [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            tags+=(--tag "${IMAGE}:latest")
+          fi
+          docker buildx imagetools create "${tags[@]}" "${refs[@]}"
+          docker buildx imagetools inspect "${IMAGE}:${RELEASE_TAG}"
+
+  release:
+    needs: [client, server-manifest]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: client-*
+          path: release
+          merge-multiple: true
+      - name: Publish client archives and checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release
+          archives=( *.tar.gz *.zip )
+          test "${#archives[@]}" -eq 6
+          sha256sum "${archives[@]}" > sha256sums.txt
+          printf 'Server (linux/amd64 + linux/arm64): `%s:%s`\n\nClient archives include config.example.json and README.md. Install herdr-core separately and set core.binary to its hc executable.\n' "$IMAGE" "$RELEASE_TAG" > notes.md
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            flags=()
+            if [[ "$RELEASE_TAG" == *-* ]]; then flags+=(--prerelease); fi
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "$RELEASE_TAG" --notes-file notes.md "${flags[@]}"
+          fi
+          gh release upload "$RELEASE_TAG" "${archives[@]}" sha256sums.txt --clobber
+          gh release edit "$RELEASE_TAG" --draft=false

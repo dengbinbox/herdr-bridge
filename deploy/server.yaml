@@ -1,0 +1,16 @@
+# Local quick start. For a public deployment, set an HTTPS public_url,
+# cookie_secure: true and put a TLS reverse proxy in front of port 8080.
+server:
+  listen: "0.0.0.0:8080"
+  public_url: "http://localhost:8080"
+database:
+  dsn_env: HERDR_BRIDGE_DATABASE_URL
+auth:
+  cookie_secure: false
+  bootstrap_admin:
+    username: admin
+    password_env: HERDR_BRIDGE_ADMIN_PASSWORD
+    require_password_change: true
+web_ui:
+  enabled: true
+  directory: /app/web-ui/dist

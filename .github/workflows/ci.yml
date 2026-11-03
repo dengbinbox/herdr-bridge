@@ -1,5 +1,11 @@
 name: bridge
-on: [push, pull_request]
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_call:
+permissions:
+  contents: read
 jobs:
   check:
     runs-on: ubuntu-latest

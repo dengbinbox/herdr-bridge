@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bridge
+      POSTGRES_DB: herdr_bridge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (hex recommended)}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U bridge -d herdr_bridge"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+  server:
+    image: ghcr.io/dengbinbox/herdr-bridge:${HERDR_BRIDGE_VERSION:-v0.0.1}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      HERDR_BRIDGE_DATABASE_URL: postgresql://bridge:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/herdr_bridge?sslmode=disable
+      HERDR_BRIDGE_ADMIN_PASSWORD: ${HERDR_BRIDGE_ADMIN_PASSWORD:?Set HERDR_BRIDGE_ADMIN_PASSWORD in .env}
+    volumes:
+      - ./server.yaml:/etc/herdr-bridge/server.yaml:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+volumes:
+  postgres-data:

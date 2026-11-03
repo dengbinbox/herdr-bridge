@@ -43,3 +43,5 @@
 - 小于 1000px 的工作台默认仅展示终端。左上角菜单在覆盖式弹层中选择 Spaces / Agents，右侧按钮打开 Files / Changes；选择空间或 Agent 后返回终端，关闭按钮与 Escape 可退出面板。面板打开时保持终端实例，暂停被遮挡终端的自动已读写入。
 - 手机端每次显示一个聚焦 pane，通过“切换分屏终端”选择其他 pane；桌面端仍保留原分屏布局。结合 VisualViewport、动态视口高度及安全区域处理软键盘和旋转后的可用空间。移动端工具操作移入菜单，终端区不再被左右侧栏压缩。
 - 验证：typecheck、53 项单元/组件测试、生产构建及 diff whitespace 检查通过。扩展了手机端 Playwright 用例；4 个浏览器用例均停在 Chrome 启动阶段（`setsockopt: Operation not permitted`），未完成真实浏览器或移动设备截图验收。
+
+后续发布验证：环境解除沙箱后，2026-11-03 重新运行上述 4 个 Chrome 用例全部通过。此前的启动阻塞已解除；验证范围仍为真实浏览器与模拟 core。详见 [发布验证记录](release-validation.md)。
