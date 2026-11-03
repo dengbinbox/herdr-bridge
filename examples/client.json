@@ -1,0 +1,14 @@
+{
+  "server_url": "https://bridge.example.com",
+  "key": "hbk_REPLACE_WITH_USER_GENERATED_KEY",
+  "name": "office-linux",
+  "core": {
+    "binary": "/absolute/path/to/hc",
+    "session": "default",
+    "socket": null
+  },
+  "connection": {
+    "reconnect_min_seconds": 1,
+    "reconnect_max_seconds": 30
+  }
+}

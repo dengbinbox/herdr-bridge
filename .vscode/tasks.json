@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Bridge: Build Web UI",
+      "type": "process",
+      "command": "npm",
+      "windows": { "command": "npm.cmd" },
+      "args": ["--prefix", "web-ui", "run", "build"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": "$tsc",
+      "group": "build"
+    }
+  ]
+}

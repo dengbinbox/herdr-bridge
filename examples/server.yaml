@@ -1,0 +1,30 @@
+server:
+  listen: "127.0.0.1:8080"
+  public_url: "https://bridge.example.com"
+  allowed_origins: ["https://bridge.example.com"]
+  trusted_proxies: []
+database:
+  driver: postgres
+  dsn_env: HERDR_BRIDGE_DATABASE_URL
+  max_conns: 20
+  min_conns: 2
+  connect_timeout: 5s
+  query_timeout: 10s
+  max_conn_lifetime: 1h
+auth:
+  session_ttl: 24h
+  cookie_secure: true
+  bootstrap_admin:
+    username: admin
+    password_env: HERDR_BRIDGE_ADMIN_PASSWORD
+    require_password_change: true
+web_ui:
+  enabled: true
+  directory: ./web-ui/dist
+connections:
+  heartbeat_interval: 20s
+  heartbeat_timeout: 60s
+  max_bridges_per_user: 20
+  max_tunnels_per_bridge: 16
+  max_ws_message_bytes: 1048576
+  max_buffer_bytes_per_tunnel: 4194304

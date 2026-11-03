@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://herdr.local/bridge/v1/control",
+  "title": "Bridge v1 control",
+  "type": "object",
+  "required": [
+    "type",
+    "version"
+  ],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "register",
+        "registered",
+        "open_tunnel",
+        "tunnel_opened",
+        "close_tunnel",
+        "tunnel_closed",
+        "error",
+        "status"
+      ]
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "bridge_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "tunnel_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "connection_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "name": {
+      "type": "string"
+    },
+    "agent_version": {
+      "type": "string"
+    },
+    "os": {
+      "type": "string"
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "code": {
+      "type": "string"
+    },
+    "core_available": {
+      "type": "boolean"
+    },
+    "max_message_bytes": {
+      "type": "integer"
+    },
+    "max_buffer_bytes": {
+      "type": "integer"
+    },
+    "max_tunnels": {
+      "type": "integer"
+    },
+    "heartbeat_interval_ms": {
+      "type": "integer"
+    },
+    "heartbeat_timeout_ms": {
+      "type": "integer"
+    }
+  },
+  "additionalProperties": true,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "register"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "bridge_id",
+          "name",
+          "agent_version",
+          "os",
+          "capabilities"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "registered"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "connection_id",
+          "capabilities",
+          "max_message_bytes",
+          "max_buffer_bytes",
+          "max_tunnels",
+          "heartbeat_interval_ms",
+          "heartbeat_timeout_ms"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "status"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "connection_id",
+          "core_available"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "open_tunnel"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "connection_id",
+          "tunnel_id",
+          "request_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "tunnel_opened"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "connection_id",
+          "tunnel_id",
+          "request_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "close_tunnel"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "connection_id",
+          "tunnel_id",
+          "request_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "tunnel_closed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "connection_id",
+          "tunnel_id",
+          "request_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "error"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "code"
+        ]
+      }
+    }
+  ]
+}

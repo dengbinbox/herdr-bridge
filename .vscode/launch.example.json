@@ -1,0 +1,64 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Bridge: Server (local)",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/server",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "--config",
+        "${workspaceFolder}/config.yaml"
+      ],
+      "env": {
+        "HERDR_BRIDGE_DATABASE_URL": "${input:databaseURL}",
+        "HERDR_BRIDGE_ADMIN_PASSWORD": "${input:adminPassword}"
+      },
+      "preLaunchTask": "Bridge: Build Web UI"
+    },
+    {
+      "name": "Bridge: Agent (local)",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/client",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "--dev"
+      ]
+    },
+    {
+      "name": "Bridge: Web UI (Vite)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm --prefix web-ui run dev",
+      "cwd": "${workspaceFolder}"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Bridge: Server + Web UI",
+      "configurations": [
+        "Bridge: Server (local)",
+        "Bridge: Web UI (Vite)"
+      ],
+      "stopAll": true
+    }
+  ],
+  "inputs": [
+    {
+      "id": "databaseURL",
+      "type": "promptString",
+      "description": "PostgreSQL 连接串",
+      "password": true
+    },
+    {
+      "id": "adminPassword",
+      "type": "promptString",
+      "description": "首次初始化的管理员密码；数据库已有账号时可留空",
+      "password": true
+    }
+  ]
+}

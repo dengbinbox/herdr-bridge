@@ -1,0 +1,42 @@
+name: bridge
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_USER: bridge
+          POSTGRES_PASSWORD: test-only-password
+          POSTGRES_DB: herdr_bridge_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U bridge -d herdr_bridge_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      HERDR_BRIDGE_TEST_DATABASE_URL: postgresql://bridge:test-only-password@127.0.0.1:5432/herdr_bridge_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.9'
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.15.0'
+          cache: npm
+          cache-dependency-path: web-ui/package-lock.json
+      - run: go mod download
+      - run: go mod verify
+      - run: go test -race ./...
+      - run: make backend
+      - run: GOOS=windows GOARCH=amd64 go build -o dist/herdr-bridge.exe ./client
+      - run: npm --prefix web-ui ci
+      - run: npm --prefix web-ui run generate:api
+      - run: npm --prefix web-ui run typecheck
+      - run: npm --prefix web-ui test
+      - run: npm --prefix web-ui run build
+      - run: npx playwright install --with-deps chromium
+        working-directory: web-ui
+      - run: npm --prefix web-ui run test:e2e

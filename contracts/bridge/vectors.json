@@ -1,0 +1,5 @@
+[
+ {"name":"empty","tunnel_id":"00112233-4455-6677-8899-aabbccddeeff","payload_hex":"","wire_hex":"010100112233445566778899aabbccddeeff"},
+ {"name":"binary","tunnel_id":"00112233-4455-6677-8899-aabbccddeeff","payload_hex":"00ff0d0a1b5b33316d","wire_hex":"010100112233445566778899aabbccddeeff00ff0d0a1b5b33316d"},
+ {"name":"utf8","tunnel_id":"550e8400-e29b-41d4-a716-446655440000","payload_hex":"e4b8ade69687","wire_hex":"0101550e8400e29b41d4a716446655440000e4b8ade69687"}
+]

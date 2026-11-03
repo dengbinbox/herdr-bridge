@@ -1,0 +1,20 @@
+.cache/
+dist/
+node_modules/
+.env
+coverage/
+playwright-report/
+test-results/
+.core-test-*/
+*.tsbuildinfo
+.local/
+/auth/
+/state/
+/config.json
+/config.yaml
+
+# Local debugger configuration may contain credentials.
+/.vscode/launch.json
+
+# Delve debug executables.
+__debug_bin*

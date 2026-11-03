@@ -1,0 +1,13 @@
+server:
+  listen: "127.0.0.1:8080"
+  public_url: "http://127.0.0.1:8080"
+  allowed_origins: ["http://127.0.0.1:8080", "http://127.0.0.1:5173"]
+database:
+  dsn_env: HERDR_BRIDGE_DATABASE_URL
+auth:
+  cookie_secure: false
+  bootstrap_admin:
+    password_env: HERDR_BRIDGE_ADMIN_PASSWORD/
+web_ui:
+  enabled: true
+  directory: ./web-ui/dist
