@@ -7,6 +7,7 @@ import {
   Route,
   Routes,
   useParams,
+  useLocation,
 } from "react-router-dom";
 import {
   QueryClient,
@@ -447,6 +448,7 @@ function WorkspaceRoute() {
   return <Workspace key={id} refreshAuth={refresh} />;
 }
 function App() {
+  const workspacePage = useLocation().pathname.startsWith("/bridges/");
   const [user, setUser] = useState<User | null>(null),
     [loading, setLoading] = useState(true);
   const query = useQueryClient();
@@ -473,7 +475,9 @@ function App() {
         <Login />
       ) : (
         <>
-          <header className={styles.topbar}>
+          <header
+            className={`${styles.topbar} ${workspacePage ? styles.workspaceTopbar : ""}`}
+          >
             <Link to="/">Herdr Bridge</Link>
             <nav>
               <Link to="/">机器</Link>
@@ -497,7 +501,9 @@ function App() {
               退出
             </button>
           </header>
-          <main className={styles.main}>
+          <main
+            className={`${styles.main} ${workspacePage ? styles.workspaceMain : ""}`}
+          >
             {user.must_change_password ? (
               <Password />
             ) : (

@@ -1,0 +1,179 @@
+{
+  "claude": {
+    "name": "Claude Code",
+    "match": [
+      "claude",
+      "claude-code",
+      "claude"
+    ],
+    "tint": false
+  },
+  "codex": {
+    "name": "Codex",
+    "match": [
+      "codex",
+      "codex"
+    ],
+    "tint": false
+  },
+  "pi": {
+    "name": "Pi",
+    "match": [
+      "pi",
+      "pi"
+    ],
+    "tint": true
+  },
+  "pig": {
+    "name": "PiG",
+    "match": [
+      "pig",
+      "pig"
+    ],
+    "tint": false
+  },
+  "opencode": {
+    "name": "OpenCode",
+    "match": [
+      "opencode",
+      "opencode"
+    ],
+    "tint": true
+  },
+  "cursor": {
+    "name": "Cursor",
+    "match": [
+      "cursor",
+      "cursor-agent",
+      "cursor-agent"
+    ],
+    "tint": true
+  },
+  "copilot": {
+    "name": "Copilot",
+    "match": [
+      "copilot",
+      "github-copilot",
+      "copilot"
+    ],
+    "tint": true
+  },
+  "amp": {
+    "name": "Amp",
+    "match": [
+      "amp",
+      "amp"
+    ],
+    "tint": false
+  },
+  "grok": {
+    "name": "Grok",
+    "match": [
+      "grok",
+      "grok-build",
+      "grok"
+    ],
+    "tint": true
+  },
+  "antigravity": {
+    "name": "Antigravity",
+    "match": [
+      "antigravity",
+      "agy",
+      "agy"
+    ],
+    "tint": false
+  },
+  "kimi": {
+    "name": "Kimi",
+    "match": [
+      "kimi",
+      "kimi"
+    ],
+    "tint": false
+  },
+  "kiro": {
+    "name": "Kiro",
+    "match": [
+      "kiro",
+      "kiro-cli",
+      "kiro-cli"
+    ],
+    "tint": false
+  },
+  "hermes": {
+    "name": "Hermes",
+    "match": [
+      "hermes",
+      "hermes"
+    ],
+    "tint": true
+  },
+  "mastracode": {
+    "name": "Mastra Code",
+    "match": [
+      "mastracode"
+    ],
+    "tint": true
+  },
+  "qoder": {
+    "name": "Qoder",
+    "match": [
+      "qoder",
+      "qodercli",
+      "qodercli"
+    ],
+    "tint": true
+  },
+  "muse": {
+    "name": "Muse",
+    "match": [
+      "muse"
+    ],
+    "tint": true
+  },
+  "crush": {
+    "name": "Crush",
+    "match": [
+      "crush",
+      "crush"
+    ],
+    "tint": false
+  },
+  "command-code": {
+    "name": "Command Code",
+    "match": [
+      "command-code"
+    ],
+    "tint": true
+  },
+  "prime-agent": {
+    "name": "Prime",
+    "match": [
+      "prime-agent"
+    ],
+    "tint": true
+  },
+  "gemini": {
+    "name": "Gemini",
+    "match": [
+      "gemini",
+      "gemini"
+    ],
+    "tint": true
+  },
+  "ollama": {
+    "name": "Ollama",
+    "match": [
+      "ollama"
+    ],
+    "tint": true
+  },
+  "agent": {
+    "name": "Agent",
+    "match": [
+      "agent"
+    ],
+    "tint": true
+  }
+}

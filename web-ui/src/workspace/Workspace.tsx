@@ -29,13 +29,13 @@ import {
   agentGroups,
   updateAttention,
   counter,
-  stateLabel,
   type AgentRow,
   type Attention,
 } from "./agent-state";
 import { InspectorPanel } from "./InspectorPanel";
 import { repositoryInfo } from "./git-service";
 import styles from "./workspace.module.css";
+import { Icon, ProgramIcon, AgentStatus } from "./Icons";
 import app from "../app.module.css";
 export function Workspace({
   refreshAuth,
@@ -56,6 +56,12 @@ export function Workspace({
     ),
     [pending, setPending] = useState<string[]>([]),
     [narrow, setNarrow] = useState(window.innerWidth < 1000),
+    [mobilePanel, setMobilePanel] = useState<
+      "menu" | "spaces" | "agents" | "files" | "changes" | null
+    >(null),
+    [viewportHeight, setViewportHeight] = useState(
+      window.visualViewport?.height || window.innerHeight,
+    ),
     [repos, setRepos] = useState<
       Record<string, Awaited<ReturnType<typeof repositoryInfo>>>
     >({});
@@ -93,16 +99,22 @@ export function Workspace({
   useEffect(() => {
     const focus = () =>
       setFront(document.visibilityState === "visible" && document.hasFocus());
-    const resize = () => setNarrow(window.innerWidth < 1000);
+    const resize = () => {
+      setNarrow(window.innerWidth < 1000);
+      if (window.innerWidth >= 1000) setMobilePanel(null);
+      setViewportHeight(window.visualViewport?.height || window.innerHeight);
+    };
     window.addEventListener("focus", focus);
     window.addEventListener("blur", focus);
     document.addEventListener("visibilitychange", focus);
     window.addEventListener("resize", resize);
+    window.visualViewport?.addEventListener("resize", resize);
     return () => {
       window.removeEventListener("focus", focus);
       window.removeEventListener("blur", focus);
       document.removeEventListener("visibilitychange", focus);
       window.removeEventListener("resize", resize);
+      window.visualViewport?.removeEventListener("resize", resize);
     };
   }, []);
   const spaces = useMemo(() => {
@@ -119,9 +131,12 @@ export function Workspace({
       : space?.tabs[0]);
   const focus = tab && (view.focus[tab.id] || shown(tab.root)[0]?.id);
   const displayRoot = tab ? focusTree(tab.root, focus) : undefined;
-  const actualPanes = displayRoot
-    ? shown(displayRoot).filter((p) => !view.detached.includes(p.id))
-    : [];
+  const allShownPanes = displayRoot ? shown(displayRoot) : [];
+  const mobilePane =
+    allShownPanes.find((p) => p.id === focus) || allShownPanes[0];
+  const actualPanes = (
+    narrow ? (mobilePane ? [mobilePane] : []) : allShownPanes
+  ).filter((p) => !view.detached.includes(p.id));
   const pane = actualPanes.find((p) => p.id === focus) || actualPanes[0];
   const address = peek || pane?.terminal || "";
   const record = records.find((t) => t.address === address);
@@ -140,7 +155,9 @@ export function Workspace({
   );
   useEffect(() => {
     const visible = new Set(
-      front && core && loaded ? visibleKey.split("\0").filter(Boolean) : [],
+      front && core && loaded && !(narrow && mobilePanel)
+        ? visibleKey.split("\0").filter(Boolean)
+        : [],
     );
     look.current = visible;
     for (const key of written.current.keys())
@@ -171,7 +188,7 @@ export function Workspace({
         .catch((e) => setError(String(e)));
     }
     if (changed) bumpAttention((n) => n + 1);
-  }, [front, visibleKey, records, core, loaded]);
+  }, [front, visibleKey, records, core, loaded, narrow, mobilePanel]);
   useEffect(() => {
     if (held && held !== address) setHeld("");
   }, [address, held]);
@@ -220,6 +237,7 @@ export function Workspace({
     };
   }, [core, front, repoKey, activityKey]);
   function select(s: Space, tid?: string, pid?: string) {
+    setMobilePanel(null);
     setPeek("");
     setView((v) => ({
       ...v,
@@ -230,6 +248,7 @@ export function Workspace({
     }));
   }
   function openAgent(row: AgentRow, child = false) {
+    setMobilePanel(null);
     if (row.effective === "done") setHeld(row.record.address);
     if (child) {
       setPeek(row.record.address);
@@ -485,23 +504,12 @@ export function Workspace({
             className={styles.agentLink}
             onClick={() => openAgent(r, depth > 0)}
           >
-            <span
-              className={styles.stateIcon}
-              data-state={r.effective}
-              aria-label={stateLabel[r.effective]}
-            >
-              {r.effective === "blocked"
-                ? "!"
-                : r.effective === "working"
-                  ? "◉"
-                  : r.effective === "done"
-                    ? "●"
-                    : "○"}
-            </span>
+            <ProgramIcon record={r.record} />
             <span>
               <strong>{r.title}</strong>
               <small>{r.detail}</small>
             </span>
+            <AgentStatus state={r.effective} />
           </button>
           {r.children.length > 0 && (
             <button
@@ -509,7 +517,10 @@ export function Workspace({
               aria-expanded={expanded}
               onClick={() => toggle("agent:" + r.record.address)}
             >
-              {expanded ? "▾" : "▸"}
+              <Icon
+                name={expanded ? "chevron-down" : "chevron-right"}
+                size={12}
+              />
             </button>
           )}
           {depth === 0 && (
@@ -523,7 +534,7 @@ export function Workspace({
               title={r.pinned ? "取消置顶" : "置顶"}
               onClick={() => void pin(r)}
             >
-              {r.pinned ? "◆" : "◇"}
+              <Icon name={r.pinned ? "pin-off" : "pin"} size={13} />
             </button>
           )}
         </div>
@@ -531,36 +542,255 @@ export function Workspace({
       </div>
     );
   }
-  const showLeft = view.left && (!narrow || !view.right),
-    showRight = view.right && (!narrow || !view.left);
+  const spacesPanel = (
+    <div className={styles.listPanel}>
+      <header className={styles.sectionHead}>
+        <h2>Spaces</h2>
+        <button aria-label="新增网页空间" onClick={addSpace}>
+          <Icon name="plus" />
+        </button>
+      </header>
+      <div className={styles.scroll}>
+        {spaces.map((s, i) => {
+          const prev = spaces[i - 1],
+            repo = repos[s.id],
+            shared =
+              repo &&
+              spaces
+                .slice(0, i)
+                .some(
+                  (x) =>
+                    x.machine === s.machine &&
+                    repos[x.id]?.common === repo.common,
+                );
+          return (
+            <React.Fragment key={s.id}>
+              {(!prev || prev.machine !== s.machine) && (
+                <div className={styles.groupTitle}>
+                  {s.machine || core?.machineName || "本机"}
+                </div>
+              )}
+              <button
+                className={styles.spaceRow}
+                aria-label={`空间 ${spaceName(s, records)}`}
+                data-selected={space?.id === s.id}
+                style={{ paddingLeft: shared ? 26 : 12 }}
+                onClick={() => select(s, view.tabs[s.id] || s.tabs[0]?.id)}
+                title={s.folder}
+              >
+                {shared ? (
+                  <Icon name="branch" size={18} />
+                ) : (
+                  <span className={styles.spaceAvatar} aria-hidden="true">
+                    {Array.from(spaceName(s, records))[0]?.toUpperCase() || "?"}
+                  </span>
+                )}
+                <span>
+                  <strong>{spaceName(s, records)}</strong>
+                  <small>
+                    {s.unavailable ||
+                      repo?.branch ||
+                      s.folder ||
+                      (s.source === "core"
+                        ? "原生空间"
+                        : s.source === "web"
+                          ? "网页私有空间"
+                          : "恢复终端")}
+                  </small>
+                </span>
+                <small>{s.tabs.length}</small>
+              </button>
+            </React.Fragment>
+          );
+        })}
+        {!spaces.length && (
+          <p className={styles.empty}>
+            暂无空间。新建 Shell 后可在未分组中打开。
+          </p>
+        )}
+        {space?.source === "web" && (
+          <>
+            <button
+              className={styles.inlineAction}
+              onClick={() => {
+                const name = window.prompt("空间名称", space.name);
+                if (name?.trim())
+                  setView((v) => ({
+                    ...v,
+                    spaces: v.spaces.map((s) =>
+                      s.id === space.id ? { ...s, name: name.trim() } : s,
+                    ),
+                  }));
+              }}
+            >
+              重命名空间
+            </button>
+            <button
+              className={styles.inlineAction}
+              disabled={space.tabs.length < 2}
+              onClick={splitWeb}
+            >
+              基础分屏
+            </button>
+            {tab && panes(tab.root).length > 1 && (
+              <button className={styles.inlineAction} onClick={unsplitWeb}>
+                标签视图
+              </button>
+            )}
+            <select
+              aria-label="添加已有终端到空间"
+              value=""
+              onChange={(e) => addToWeb(e.target.value)}
+            >
+              <option value="">添加已有终端…</option>
+              {records
+                .filter((t) => machineOf(t.address) === space.machine)
+                .map((t) => (
+                  <option key={t.address} value={t.address}>
+                    {t.title || t.address}
+                  </option>
+                ))}
+            </select>
+          </>
+        )}
+        {space && (
+          <details
+            open={space.source === "recovered"}
+            className={styles.terminals}
+          >
+            <summary>
+              空间终端 · {space.tabs.flatMap((t) => panes(t.root)).length}
+            </summary>
+            {space.tabs.flatMap((t) =>
+              panes(t.root).map((p) => (
+                <div key={p.id}>
+                  <span title={p.terminal}>
+                    {records.find((r) => r.address === p.terminal)?.title ||
+                      p.terminal}
+                  </span>
+                  <button onClick={() => openTerminal(space, t.id, p, false)}>
+                    附着
+                  </button>
+                  <button onClick={() => openTerminal(space, t.id, p, true)}>
+                    只读
+                  </button>
+                </div>
+              )),
+            )}
+          </details>
+        )}
+      </div>
+    </div>
+  );
+  const agentsPanel = (
+    <div className={styles.listPanel}>
+      <header className={styles.sectionHead}>
+        <h2>Agents</h2>
+        <select
+          aria-label="Agent 分组方式"
+          value={view.grouped ? "space" : "priority"}
+          onChange={(e) => update({ grouped: e.target.value === "space" })}
+        >
+          <option value="priority">Priority</option>
+          <option value="space">Grouped by space</option>
+        </select>
+      </header>
+      <div className={styles.scroll}>
+        {agentGroups(rows, view.grouped).map(([group, rs]) => (
+          <section key={group}>
+            <button
+              className={styles.groupTitle}
+              aria-expanded={!view.collapsed.includes(group)}
+              onClick={() => toggle(group)}
+            >
+              {view.collapsed.includes(group) ? "▸" : "▾"}{" "}
+              {view.grouped && group !== "Pinned"
+                ? spaceName(rs[0].space, records)
+                : group}
+              <span>{rs.length}</span>
+            </button>
+            {!view.collapsed.includes(group) && rs.map((r) => agentRow(r))}
+          </section>
+        ))}
+        {!rows.length && (
+          <p className={styles.empty}>
+            暂无 Agent 状态
+            <br />
+            <small>普通 Shell 显示在 Spaces 中</small>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+  const sidebar = (
+    <aside className={styles.sidebar}>
+      <Group orientation="vertical" onLayoutChanged={onLayout}>
+        <Panel
+          id="spaces"
+          defaultSize={`${view.sizes.spaces || 46}%`}
+          minSize="20%"
+        >
+          {spacesPanel}
+        </Panel>
+        <Separator className={styles.separator} />
+        <Panel id="agents" minSize="20%">
+          {agentsPanel}
+        </Panel>
+      </Group>
+    </aside>
+  );
+  const showLeft = !narrow && view.left,
+    showRight = !narrow && view.right;
   return (
-    <section className={styles.workspace} aria-label="终端工作台">
+    <section
+      className={styles.workspace}
+      aria-label="终端工作台"
+      style={
+        { "--viewport-height": `${viewportHeight}px` } as React.CSSProperties
+      }
+    >
       <header className={styles.toolbar}>
         <button
-          aria-label="切换左栏"
-          aria-expanded={showLeft}
+          aria-label={narrow ? "选择 Spaces / Agents" : "切换左栏"}
+          aria-expanded={narrow ? mobilePanel !== null : showLeft}
           onClick={() =>
-            update({ left: !showLeft, ...(narrow ? { right: false } : {}) })
+            narrow ? setMobilePanel("menu") : update({ left: !showLeft })
           }
         >
-          ☰
+          <Icon name="menu" />
         </button>
         <strong>{core?.machineName || "终端工作台"}</strong>
         <span role="status" className={styles.connection}>
           {state}
         </span>
         <div className={styles.toolbarActions}>
-          <button disabled={!core} onClick={() => void run()}>
+          <button
+            className={styles.desktopAction}
+            disabled={!core}
+            onClick={() => void run()}
+          >
             新建 Shell
           </button>
-          <button onClick={refresh}>刷新终端</button>
-          <button disabled={saving || !loaded} onClick={() => void save()}>
+          <button className={styles.desktopAction} onClick={refresh}>
+            刷新终端
+          </button>
+          <button
+            className={styles.desktopAction}
+            disabled={saving || !loaded}
+            onClick={() => void save()}
+          >
             {saving ? "保存中…" : "保存布局"}
           </button>
           <button
-            aria-expanded={showRight}
+            aria-expanded={
+              narrow
+                ? mobilePanel === "files" || mobilePanel === "changes"
+                : showRight
+            }
             onClick={() =>
-              update({ right: !showRight, ...(narrow ? { left: false } : {}) })
+              narrow
+                ? setMobilePanel(view.inspector)
+                : update({ right: !showRight })
             }
           >
             Files / Changes
@@ -587,222 +817,7 @@ export function Workspace({
                 minSize={narrow ? "35%" : "180px"}
                 maxSize={narrow ? "80%" : "420px"}
               >
-                <aside className={styles.sidebar}>
-                  <Group orientation="vertical" onLayoutChanged={onLayout}>
-                    <Panel
-                      id="spaces"
-                      defaultSize={`${view.sizes.spaces || 46}%`}
-                      minSize="20%"
-                    >
-                      <div className={styles.listPanel}>
-                        <header className={styles.sectionHead}>
-                          <h2>Spaces</h2>
-                          <button aria-label="新增网页空间" onClick={addSpace}>
-                            ＋
-                          </button>
-                        </header>
-                        <div className={styles.scroll}>
-                          {spaces.map((s, i) => {
-                            const prev = spaces[i - 1],
-                              repo = repos[s.id],
-                              shared =
-                                repo &&
-                                spaces
-                                  .slice(0, i)
-                                  .some(
-                                    (x) =>
-                                      x.machine === s.machine &&
-                                      repos[x.id]?.common === repo.common,
-                                  );
-                            return (
-                              <React.Fragment key={s.id}>
-                                {(!prev || prev.machine !== s.machine) && (
-                                  <div className={styles.groupTitle}>
-                                    {s.machine || core?.machineName || "本机"}
-                                  </div>
-                                )}
-                                <button
-                                  className={styles.spaceRow}
-                                  aria-label={`空间 ${spaceName(s, records)}`}
-                                  data-selected={space?.id === s.id}
-                                  style={{ paddingLeft: shared ? 26 : 12 }}
-                                  onClick={() =>
-                                    select(s, view.tabs[s.id] || s.tabs[0]?.id)
-                                  }
-                                  title={s.folder}
-                                >
-                                  <span>▱</span>
-                                  <span>
-                                    <strong>{spaceName(s, records)}</strong>
-                                    <small>
-                                      {s.unavailable ||
-                                        repo?.branch ||
-                                        s.folder ||
-                                        (s.source === "core"
-                                          ? "原生空间"
-                                          : s.source === "web"
-                                            ? "网页私有空间"
-                                            : "恢复终端")}
-                                    </small>
-                                  </span>
-                                  <small>{s.tabs.length}</small>
-                                </button>
-                              </React.Fragment>
-                            );
-                          })}
-                          {!spaces.length && (
-                            <p className={styles.empty}>
-                              暂无空间。新建 Shell 后可在未分组中打开。
-                            </p>
-                          )}
-                          {space?.source === "web" && (
-                            <>
-                              <button
-                                className={styles.inlineAction}
-                                onClick={() => {
-                                  const name = window.prompt(
-                                    "空间名称",
-                                    space.name,
-                                  );
-                                  if (name?.trim())
-                                    setView((v) => ({
-                                      ...v,
-                                      spaces: v.spaces.map((s) =>
-                                        s.id === space.id
-                                          ? { ...s, name: name.trim() }
-                                          : s,
-                                      ),
-                                    }));
-                                }}
-                              >
-                                重命名空间
-                              </button>
-                              <button
-                                className={styles.inlineAction}
-                                disabled={space.tabs.length < 2}
-                                onClick={splitWeb}
-                              >
-                                基础分屏
-                              </button>
-                              {tab && panes(tab.root).length > 1 && (
-                                <button
-                                  className={styles.inlineAction}
-                                  onClick={unsplitWeb}
-                                >
-                                  标签视图
-                                </button>
-                              )}
-                              <select
-                                aria-label="添加已有终端到空间"
-                                value=""
-                                onChange={(e) => addToWeb(e.target.value)}
-                              >
-                                <option value="">添加已有终端…</option>
-                                {records
-                                  .filter(
-                                    (t) =>
-                                      machineOf(t.address) === space.machine,
-                                  )
-                                  .map((t) => (
-                                    <option key={t.address} value={t.address}>
-                                      {t.title || t.address}
-                                    </option>
-                                  ))}
-                              </select>
-                            </>
-                          )}
-                          {space && (
-                            <details
-                              open={space.source === "recovered"}
-                              className={styles.terminals}
-                            >
-                              <summary>
-                                空间终端 ·{" "}
-                                {
-                                  space.tabs.flatMap((t) => panes(t.root))
-                                    .length
-                                }
-                              </summary>
-                              {space.tabs.flatMap((t) =>
-                                panes(t.root).map((p) => (
-                                  <div key={p.id}>
-                                    <span title={p.terminal}>
-                                      {records.find(
-                                        (r) => r.address === p.terminal,
-                                      )?.title || p.terminal}
-                                    </span>
-                                    <button
-                                      onClick={() =>
-                                        openTerminal(space, t.id, p, false)
-                                      }
-                                    >
-                                      附着
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        openTerminal(space, t.id, p, true)
-                                      }
-                                    >
-                                      只读
-                                    </button>
-                                  </div>
-                                )),
-                              )}
-                            </details>
-                          )}
-                        </div>
-                      </div>
-                    </Panel>
-                    <Separator className={styles.separator} />
-                    <Panel id="agents" minSize="20%">
-                      <div className={styles.listPanel}>
-                        <header className={styles.sectionHead}>
-                          <h2>Agents</h2>
-                          <select
-                            aria-label="Agent 分组方式"
-                            value={view.grouped ? "space" : "priority"}
-                            onChange={(e) =>
-                              update({ grouped: e.target.value === "space" })
-                            }
-                          >
-                            <option value="priority">Priority</option>
-                            <option value="space">Grouped by space</option>
-                          </select>
-                        </header>
-                        <div className={styles.scroll}>
-                          {agentGroups(rows, view.grouped).map(
-                            ([group, rs]) => (
-                              <section key={group}>
-                                <button
-                                  className={styles.groupTitle}
-                                  aria-expanded={
-                                    !view.collapsed.includes(group)
-                                  }
-                                  onClick={() => toggle(group)}
-                                >
-                                  {view.collapsed.includes(group) ? "▸" : "▾"}{" "}
-                                  {view.grouped && group !== "Pinned"
-                                    ? spaceName(rs[0].space, records)
-                                    : group}
-                                  <span>{rs.length}</span>
-                                </button>
-                                {!view.collapsed.includes(group) &&
-                                  rs.map((r) => agentRow(r))}
-                              </section>
-                            ),
-                          )}
-                          {!rows.length && (
-                            <p className={styles.empty}>
-                              暂无 Agent 状态
-                              <br />
-                              <small>普通 Shell 显示在 Spaces 中</small>
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </Panel>
-                  </Group>
-                </aside>
+                {sidebar}
               </Panel>
               <Separator className={styles.separator} />
             </>
@@ -822,6 +837,26 @@ export function Workspace({
                     </button>
                   ))}
                 </nav>
+                {narrow && allShownPanes.length > 1 && (
+                  <select
+                    aria-label="切换分屏终端"
+                    value={mobilePane?.id || ""}
+                    onChange={(e) =>
+                      tab &&
+                      setView((v) => ({
+                        ...v,
+                        focus: { ...v.focus, [tab.id]: e.target.value },
+                      }))
+                    }
+                  >
+                    {allShownPanes.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {records.find((r) => r.address === p.terminal)?.title ||
+                          p.terminal}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </header>
               {peek && (
                 <div className={styles.peekHeader}>
@@ -840,10 +875,14 @@ export function Workspace({
                     onKill={() => setKill(peek)}
                   />
                 ) : displayRoot ? (
-                  renderNode(displayRoot)
+                  renderNode(
+                    narrow && mobilePane
+                      ? { id: mobilePane.id, type: "block", pane: mobilePane }
+                      : displayRoot,
+                  )
                 ) : (
                   <div className={styles.welcome}>
-                    <span>▱</span>
+                    <Icon name="folder" size={32} />
                     <h2>选择一个空间，继续工作</h2>
                     <p>
                       终端与分屏在中间，项目和 Agent 在左侧。
@@ -891,6 +930,98 @@ export function Workspace({
             : "共享输入 · 多窗口可能共同控制"}
         </span>
       </footer>
+      <Dialog.Root
+        open={narrow && mobilePanel !== null}
+        onOpenChange={(open) => {
+          if (!open) setMobilePanel(null);
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className={styles.mobileOverlay} />
+          <Dialog.Content
+            className={styles.mobileDrawer}
+            style={
+              {
+                "--viewport-height": `${viewportHeight}px`,
+              } as React.CSSProperties
+            }
+          >
+            <header className={styles.mobileDrawerHeader}>
+              <Dialog.Title>工作台导航</Dialog.Title>
+              <Dialog.Close aria-label="返回终端">
+                <Icon name="close" />
+              </Dialog.Close>
+            </header>
+            <Dialog.Description className={styles.srOnly}>
+              选择空间或 Agent，或查看当前终端的文件和修改。
+            </Dialog.Description>
+            <nav className={styles.mobileNav} aria-label="工作台面板">
+              {(
+                [
+                  ["spaces", "Spaces", "folder"],
+                  ["agents", "Agents", "agents"],
+                  ["files", "Files", "file"],
+                  ["changes", "Changes", "changes"],
+                ] as const
+              ).map(([key, label, icon]) => (
+                <button
+                  key={key}
+                  aria-pressed={mobilePanel === key}
+                  onClick={() => {
+                    setMobilePanel(key);
+                    if (key === "files" || key === "changes")
+                      update({ inspector: key });
+                  }}
+                >
+                  <Icon name={icon} />
+                  {label}
+                </button>
+              ))}
+            </nav>
+            <div className={styles.mobileDrawerBody}>
+              {mobilePanel === "menu" ? (
+                <div className={styles.mobileActions}>
+                  <p>选择上方面板，或继续操作当前终端。</p>
+                  <button
+                    disabled={!core}
+                    onClick={() => {
+                      setMobilePanel(null);
+                      void run();
+                    }}
+                  >
+                    <Icon name="terminal" />
+                    新建 Shell
+                  </button>
+                  <button onClick={refresh}>刷新工作台</button>
+                  <button
+                    disabled={saving || !loaded}
+                    onClick={() => void save()}
+                  >
+                    {saving ? "保存中…" : "保存布局"}
+                  </button>
+                  <Dialog.Close>返回终端</Dialog.Close>
+                </div>
+              ) : mobilePanel === "spaces" ? (
+                spacesPanel
+              ) : mobilePanel === "agents" ? (
+                agentsPanel
+              ) : (
+                <InspectorPanel
+                  key={`${id}/${machine}/${cwd}/${core ? "online" : "offline"}`}
+                  core={core}
+                  ctx={{ machine, cwd }}
+                  tab={mobilePanel === "changes" ? "changes" : "files"}
+                  onTab={(inspector) => {
+                    setMobilePanel(inspector);
+                    update({ inspector });
+                  }}
+                  onClose={() => setMobilePanel(null)}
+                />
+              )}
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
       <Dialog.Root
         open={kill !== null}
         onOpenChange={(open) => {

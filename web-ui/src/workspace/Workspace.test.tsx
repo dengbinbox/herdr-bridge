@@ -52,6 +52,11 @@ const block = (id: string, terminal: string) => ({
   content: { terminal },
 });
 beforeEach(() => {
+  Object.defineProperty(window, "innerWidth", {
+    value: 1280,
+    writable: true,
+    configurable: true,
+  });
   vi.spyOn(document, "hasFocus").mockReturnValue(true);
   fixture.api.mockResolvedValue({ version: 0, document: null });
   fixture.list.mockResolvedValue({
@@ -231,4 +236,73 @@ it("ignores a slow file preview after switching pane context", async () => {
   resolve({ text: "STALE FILE", truncated: false });
   await new Promise((r) => setTimeout(r, 0));
   expect(screen.queryByText("STALE FILE")).toBeNull();
+});
+
+it("previews Markdown by default and lets the user switch back to source", async () => {
+  fixture.read.mockResolvedValue({
+    text: "# Project guide\n\n**Hello**",
+    truncated: false,
+  });
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: /README.md/ }));
+  await screen.findByRole("heading", { name: "Project guide" });
+  fireEvent.click(screen.getByRole("button", { name: "源码" }));
+  expect(screen.queryByRole("heading", { name: "Project guide" })).toBeNull();
+  expect(screen.getByText("# Project guide")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "预览" }));
+  expect(screen.getByRole("heading", { name: "Project guide" })).toBeTruthy();
+});
+
+it("mobile navigation overlays the terminal, returns after choosing an agent, and switches split panes", async () => {
+  Object.defineProperty(window, "innerWidth", {
+    value: 390,
+    writable: true,
+    configurable: true,
+  });
+  mount();
+  await screen.findByTestId("terminal:t1");
+  expect(screen.queryByTestId("terminal:t2")).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Spaces" })).toBeNull();
+  const terminal = screen.getByTestId("terminal:t1");
+  fireEvent.click(screen.getByRole("button", { name: "选择 Spaces / Agents" }));
+  expect(screen.getByRole("dialog")).toBeTruthy();
+  expect(screen.getByTestId("terminal:t1")).toBe(terminal);
+  fireEvent.click(screen.getByRole("button", { name: "Agents" }));
+  fireEvent.click(screen.getByRole("button", { name: /Second Agent/ }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(screen.getByTestId("terminal:t2")).toBeTruthy();
+  expect(screen.queryByTestId("terminal:t1")).toBeNull();
+  fireEvent.change(screen.getByRole("combobox", { name: "切换分屏终端" }), {
+    target: { value: "core::p1" },
+  });
+  expect(screen.getByTestId("terminal:t1")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Files / Changes" }));
+  await screen.findByRole("button", { name: /README.md/ });
+  expect(screen.getByTestId("terminal:t1")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "返回终端" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it("does not mark the terminal seen while covered by the mobile panel", async () => {
+  Object.defineProperty(window, "innerWidth", {
+    value: 390,
+    writable: true,
+    configurable: true,
+  });
+  mount();
+  await screen.findByTestId("terminal:t1");
+  fireEvent.click(screen.getByRole("button", { name: "选择 Spaces / Agents" }));
+  fixture.state.core.call.mockClear();
+  fixture.state.records = fixture.state.records.map((r: any) =>
+    r.address === "t1" ? { ...r, turn: 2 } : r,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Spaces" }));
+  expect(fixture.state.core.call).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "返回终端" }));
+  await waitFor(() =>
+    expect(fixture.state.core.call).toHaveBeenCalledWith("terminal.label", {
+      terminal: "t1",
+      labels: { "herdr.seen": "2" },
+    }),
+  );
 });

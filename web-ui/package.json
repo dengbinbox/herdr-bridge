@@ -19,6 +19,7 @@
     "@tanstack/react-query": "5.101.0",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/xterm": "6.0.0",
+    "marked": "file:vendor/marked-16.4.2.tgz",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-resizable-panels": "4.11.1",

@@ -32,7 +32,7 @@ async function fixture(page: Page, rich = false) {
           address: "t1",
           title: "Implementation",
           cwd: "/project",
-          status: { state: "working" },
+          status: { state: "working", app: "codex" },
           turn: 1,
           labels: {},
         },
@@ -41,7 +41,7 @@ async function fixture(page: Page, rich = false) {
           address: "t2",
           title: "Review",
           cwd: "/review",
-          status: { state: "error" },
+          status: { state: "error", app: "claude-code" },
           turn: 2,
           labels: { "herdr.pinned": "1" },
         },
@@ -206,7 +206,7 @@ async function fixture(page: Page, rich = false) {
             if (rpc.method === "machine.list") result = { machines: [] };
             if (rpc.method === "file.read")
               result = {
-                text: "Workspace preview\nsecond line",
+                text: "# Workspace preview\n\nsecond line",
                 first: 1,
                 last: 2,
                 lines: 2,
@@ -395,4 +395,59 @@ test("native spaces, agent pins, focused directory, file and diff preview", asyn
     ),
   ).toBe(true);
   await page.screenshot({ path: "test-results/workspace-narrow.png" });
+});
+
+test("phone keeps a full-width terminal while navigation and files open in a modal", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const state = await fixture(page, true);
+  await expect(page.locator(".xterm-screen")).toHaveCount(1);
+  await expect(
+    page.getByRole("heading", { name: "Spaces", exact: true }),
+  ).toHaveCount(0);
+  const attached = state.calls.filter(
+    (c) => c.method === "terminal.attach",
+  ).length;
+  await page.getByRole("button", { name: "选择 Spaces / Agents" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: "Agents", exact: true }).click();
+  await expect(
+    page.getByRole("img", { name: "Codex", exact: true }),
+  ).toBeVisible();
+  expect(
+    state.calls.filter((c) => c.method === "terminal.attach"),
+  ).toHaveLength(attached);
+  await page.getByRole("button", { name: "Spaces", exact: true }).click();
+  await page
+    .getByRole("button", { name: "空间 Project Beta", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect
+    .poll(
+      () =>
+        state.calls.filter((c) => c.method === "terminal.attach").at(-1)?.params
+          .terminal,
+    )
+    .toBe("t2");
+  await page
+    .getByRole("button", { name: "Files / Changes", exact: true })
+    .click();
+  await page.getByRole("button", { name: /README.md/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "Workspace preview" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  await expect(
+    page.getByText("# Workspace preview", { exact: true }),
+  ).toBeVisible();
+  await page.screenshot({ path: "test-results/workspace-phone-markdown.png" });
+  await page.getByRole("button", { name: "返回终端", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({ path: "test-results/workspace-phone-terminal.png" });
 });

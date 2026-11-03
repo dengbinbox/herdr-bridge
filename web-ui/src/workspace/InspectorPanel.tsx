@@ -8,6 +8,8 @@ import {
   type Entry,
 } from "./file-service";
 import { gitStatus, gitDiff, diffLines, type Change } from "./git-service";
+import { MarkdownPreview } from "./MarkdownPreview";
+import { Icon } from "./Icons";
 import styles from "./workspace.module.css";
 function useTick(active: boolean) {
   const [tick, setTick] = useState(0);
@@ -88,7 +90,15 @@ function Directory({
                   : onFile(full)
               }
             >
-              <span>{e.directory ? (expanded ? "▾" : "▸") : "·"}</span>
+              <span className={styles.fileGlyph}>
+                {e.directory && (
+                  <Icon
+                    name={expanded ? "chevron-down" : "chevron-right"}
+                    size={12}
+                  />
+                )}
+                <Icon name={e.directory ? "folder" : "file"} />
+              </span>
               <span>{e.name}</span>
               {e.directory && <small>目录</small>}
             </button>
@@ -154,6 +164,8 @@ function Preview({
   change,
   head,
   onBack,
+  onFile,
+  refreshTick = 0,
 }: {
   core: CoreClient;
   ctx: Context;
@@ -161,14 +173,17 @@ function Preview({
   change?: Change;
   head?: boolean;
   onBack: () => void;
+  refreshTick?: number;
+  onFile?: (path: string) => void;
 }) {
+  const markdown = !change && /\.(md|markdown|mdown)$/i.test(path);
+  const [source, setSource] = useState(false);
   const [data, setData] = useState<{ text: string; truncated: boolean } | null>(
       null,
     ),
     [error, setError] = useState("");
   useEffect(() => {
     let live = true;
-    setData(null);
     setError("");
     void (
       change ? gitDiff(core, ctx, change, !!head) : readFile(core, ctx, path)
@@ -182,7 +197,7 @@ function Preview({
     return () => {
       live = false;
     };
-  }, [core, ctx.cwd, ctx.machine, path, change?.status, head]);
+  }, [core, ctx.cwd, ctx.machine, path, change?.status, head, refreshTick]);
   return (
     <div className={styles.preview}>
       <div className={styles.sectionHead}>
@@ -201,11 +216,53 @@ function Preview({
       <div className={styles.path} title={path}>
         {path}
       </div>
+      {markdown && (
+        <div
+          className={styles.previewModes}
+          role="group"
+          aria-label="文件显示方式"
+        >
+          <button aria-pressed={!source} onClick={() => setSource(false)}>
+            预览
+          </button>
+          <button aria-pressed={source} onClick={() => setSource(true)}>
+            源码
+          </button>
+        </div>
+      )}
       {error && <p role="alert">{error}</p>}
       {!data && !error && <p>读取内容…</p>}
       {data &&
         (data.text ? (
-          <TextPreview text={data.text} diff={!!change} />
+          markdown && !source ? (
+            <MarkdownPreview
+              text={data.text}
+              onFile={
+                onFile
+                  ? (href) => {
+                      try {
+                        const relative = decodeURIComponent(
+                          href.split(/[?#]/)[0],
+                        );
+                        if (relative)
+                          onFile(
+                            relative.startsWith("/")
+                              ? relative
+                              : joinPath(
+                                  path.replace(/[\\/][^\\/]+$/, ""),
+                                  relative,
+                                ),
+                          );
+                      } catch {
+                        setError("无法打开此文件链接");
+                      }
+                    }
+                  : undefined
+              }
+            />
+          ) : (
+            <TextPreview text={data.text} diff={!!change} />
+          )
         ) : (
           <p>
             {change
@@ -237,11 +294,13 @@ function Files({
     <div hidden={!active} className={styles.inspectorBody}>
       {file ? (
         <Preview
-          key={file + tick}
+          key={file}
+          refreshTick={tick}
           core={core}
           ctx={ctx}
           path={file}
           onBack={() => setFile("")}
+          onFile={setFile}
         />
       ) : (
         <>

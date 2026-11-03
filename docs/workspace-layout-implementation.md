@@ -32,3 +32,14 @@
 - 扩展 `tests/workspace.spec.ts`，保留终端生命周期测试，新增原生空间、Pin/Unpin、目录切换、文件/diff 预览、1280/1920/窄屏断言与截图输出。
 - `PLAYWRIGHT_CHANNEL=chrome npm --prefix web-ui run test:e2e`：浏览器在启动阶段失败，Chrome crashpad 报 `setsockopt: Operation not permitted` / SIGTRAP，未进入页面测试。未生成可验收截图；不能把组件测试当浏览器验收。
 - 本轮未接入真实 PostgreSQL/core/App 会话，因此远端 Windows、真实机器/仓库、原生 App 标签联动及视觉尺寸仍需实际环境验证。未运行 Go 测试，因为没有更改 Go 代码或共享协议。
+
+## 后续优化：图标、Markdown 与移动端
+
+2026-11-03：按反馈完成以下调整。
+
+- Spaces 使用原生 App 风格的绿色首字母方块，worktree 使用分支图标；Agent 左侧改为程序身份图标，右侧单独显示状态。复用 App 的 Codex、Claude 等 SVG 与程序别名，Working 使用 900ms 旋转指示器，尊重 reduced-motion；未知程序回退通用 Agent 图标，不推断 Agent 工作状态。
+- Files 的 `.md` / `.markdown` / `.mdown` 默认显示 Markdown 预览，可切换带行号的源码。支持标题、强调、列表/任务列表、表格、引用、代码块和链接；相对文件链接仍经当前机器的文件读取上下文打开。轮询刷新保留显示模式。HTML 以文本显示，图片显示占位描述，不自动加载外部资源。
+- Markdown 使用 Marked 16.4.2 lexer，输出为 React 元素，不插入生成的 HTML。由于安装时网络连接受限，依赖以本地发行包 `web-ui/vendor/marked-16.4.2.tgz` 固定，许可证随包保留；其余依赖锁定记录不变。
+- 小于 1000px 的工作台默认仅展示终端。左上角菜单在覆盖式弹层中选择 Spaces / Agents，右侧按钮打开 Files / Changes；选择空间或 Agent 后返回终端，关闭按钮与 Escape 可退出面板。面板打开时保持终端实例，暂停被遮挡终端的自动已读写入。
+- 手机端每次显示一个聚焦 pane，通过“切换分屏终端”选择其他 pane；桌面端仍保留原分屏布局。结合 VisualViewport、动态视口高度及安全区域处理软键盘和旋转后的可用空间。移动端工具操作移入菜单，终端区不再被左右侧栏压缩。
+- 验证：typecheck、53 项单元/组件测试、生产构建及 diff whitespace 检查通过。扩展了手机端 Playwright 用例；4 个浏览器用例均停在 Chrome 启动阶段（`setsockopt: Operation not permitted`），未完成真实浏览器或移动设备截图验收。
