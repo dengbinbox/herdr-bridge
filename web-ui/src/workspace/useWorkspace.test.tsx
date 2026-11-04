@@ -88,3 +88,13 @@ it("drops document results after leaving a bridge", async () => {
   await act(async () => mock.reads[0](doc("old bridge")));
   expect(result.current.native).toHaveLength(0);
 });
+
+it("reloads shared layouts on terminal exit so empty spaces can be reconciled", async () => {
+  const refresh = vi.fn(), receive = vi.fn();
+  renderHook(() => useWorkspace("bridge", refresh, receive));
+  await waitFor(() => expect(mock.reads).toHaveLength(1));
+  await act(async () => mock.reads[0](doc("before exit")));
+  act(() => mock.client.onEvent({ method: "event", params: { seq: 2, type: "finished", terminal: "t1", data: { reason: "exited" } } }));
+  await waitFor(() => expect(mock.reads).toHaveLength(2));
+  await act(async () => mock.reads[1]({ value: { spaces: [] }, version: 2 }));
+});

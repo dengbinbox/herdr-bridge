@@ -332,3 +332,21 @@ it("creates sessions on the device whose plus button was clicked, even without s
     "terminal.run", expect.objectContaining({ on: undefined, cwd: "/one" }),
   ));
 });
+
+it("offers Close on a space context menu and confirms before ending its terminals", async () => {
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  fixture.state.core.call.mockImplementation(async (method: string) =>
+    method === "doc.get" ? { version: 1, value: { spaces: [{ id: "one", tabs: [{ root: { type: "block", content: { terminal: "t1" } } }] }] } } : {},
+  );
+  mount();
+  const row = await screen.findByRole("button", { name: "空间 Project One" });
+  fireEvent.contextMenu(row, { clientX: 20, clientY: 30 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Close · 关闭空间" }));
+  expect(confirm).toHaveBeenCalledOnce();
+  expect(fixture.state.core.call).not.toHaveBeenCalledWith("terminal.kill", expect.anything());
+  confirm.mockReturnValue(true);
+  fireEvent.contextMenu(row);
+  fireEvent.click(screen.getByRole("menuitem", { name: "Close · 关闭空间" }));
+  await waitFor(() => expect(fixture.state.core.call).toHaveBeenCalledWith("terminal.kill", { terminal: "t1" }));
+  await waitFor(() => expect(fixture.state.core.call).toHaveBeenCalledWith("doc.set", expect.objectContaining({ value: { spaces: [] } })));
+});

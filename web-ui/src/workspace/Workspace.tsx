@@ -5,7 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { api } from "../api";
 import { TerminalPane } from "../Terminal";
-import { createSpace } from "./space-service";
+import { closeSpace, createSpace } from "./space-service";
 import { useWorkspace } from "./useWorkspace";
 import {
   focusTree,
@@ -50,6 +50,8 @@ export function Workspace({
     [version, setVersion] = useState(0),
     [error, setError] = useState(""),
     [saving, setSaving] = useState(false),
+    [spaceMenu, setSpaceMenu] = useState<{ space: Space; x: number; y: number } | null>(null),
+    [closingSpace, setClosingSpace] = useState(""),
     [kill, setKill] = useState<string | null>(null),
     [peek, setPeek] = useState(""),
     [held, setHeld] = useState(""),
@@ -79,6 +81,39 @@ export function Workspace({
         look.current,
       );
     });
+  useEffect(() => {
+    if (!spaceMenu) return;
+    const dismiss = () => setSpaceMenu(null);
+    const key = (event: KeyboardEvent) => { if (event.key === "Escape") dismiss(); };
+    window.addEventListener("click", dismiss);
+    window.addEventListener("keydown", key);
+    window.addEventListener("resize", dismiss);
+    return () => {
+      window.removeEventListener("click", dismiss);
+      window.removeEventListener("keydown", key);
+      window.removeEventListener("resize", dismiss);
+    };
+  }, [spaceMenu]);
+  async function closeSelectedSpace(s: Space) {
+    setSpaceMenu(null);
+    if (!core || closingSpace || !window.confirm(`关闭空间“${spaceName(s, records)}”？这会结束其中的所有终端。`)) return;
+    setClosingSpace(s.id);
+    try {
+      if (s.source === "core") {
+        await closeSpace(core, s.machine, s.id.slice(`core:${s.machine}:`.length));
+      } else {
+        for (const terminal of new Set(s.tabs.flatMap((t) => panes(t.root).map((p) => p.terminal))))
+          await core.call("terminal.kill", { terminal });
+        setView((v) => ({ ...v, spaces: v.spaces.filter((item) => item.id !== s.id) }));
+      }
+      refresh();
+      setError("");
+    } catch (error) {
+      setError(`关闭空间失败：${String(error)}`);
+    } finally {
+      setClosingSpace("");
+    }
+  }
   const update = (patch: Partial<View>) => setView((v) => ({ ...v, ...patch }));
   useEffect(() => {
     let live = true;
@@ -578,6 +613,10 @@ export function Workspace({
                     style={{ paddingLeft: shared ? 26 : 12 }}
                     onClick={() => select(s, view.tabs[s.id] || s.tabs[0]?.id)}
                     title={s.folder}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setSpaceMenu({ space: s, x: Math.min(event.clientX, window.innerWidth - 180), y: Math.min(event.clientY, window.innerHeight - 60) });
+                    }}
                   >
                     {shared ? (
                       <Icon name="branch" size={18} />
@@ -752,6 +791,16 @@ export function Workspace({
         { "--viewport-height": `${viewportHeight}px` } as React.CSSProperties
       }
     >
+      {spaceMenu && (
+        <div className={styles.spaceMenu} role="menu" aria-label="空间操作" style={{ left: spaceMenu.x, top: spaceMenu.y }}>
+          <button
+            role="menuitem"
+            autoFocus
+            disabled={!core || !!closingSpace || !!spaceMenu.space.unavailable}
+            onClick={() => void closeSelectedSpace(spaceMenu.space)}
+          >Close · 关闭空间</button>
+        </div>
+      )}
       <header className={styles.toolbar}>
         <button
           aria-label={narrow ? "选择 Spaces / Agents" : "切换左栏"}

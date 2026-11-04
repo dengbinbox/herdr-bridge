@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, APIError, type User } from "../api";
 import { CoreClient, TerminalStore, type TerminalRecord } from "../core";
+import { reconcileSpaces } from "./space-service";
 import { nativeLayout, type Space } from "./model";
 export function useWorkspace(
   id: string,
@@ -26,6 +27,7 @@ export function useWorkspace(
       if (stopped) return;
       const c = new CoreClient();
       current = c;
+      const store = new TerminalStore();
       let retrying = false,
         reading = false,
         dirty = false,
@@ -78,6 +80,8 @@ export function useWorkspace(
                 continue;
               }
               try {
+                await reconcileSpaces(c, m.name, new Set(store.list().map((r) => r.address)), valid);
+                if (!valid()) break;
                 const doc = await c.call<{ value: unknown }>("doc.get", {
                   name: "herdr-app",
                   ...(m.name ? { on: m.name } : {}),
@@ -120,7 +124,6 @@ export function useWorkspace(
           c.dispose();
           return;
         }
-        const store = new TerminalStore();
         c.onEvent = (event) => {
           if (!valid()) return;
           if (store.apply(event)) {
@@ -136,6 +139,8 @@ export function useWorkspace(
             event.method === "missed" ||
             event.params?.type === "doc" ||
             event.params?.type === "created" ||
+            event.params?.type === "finished" ||
+            event.params?.type === "removed" ||
             event.method === "doc" ||
             String(event.params?.type).startsWith("machine")
           )
