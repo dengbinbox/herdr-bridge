@@ -11,7 +11,6 @@ import (
 	"herdr-bridge/internal/transport"
 	"io"
 	"log/slog"
-	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"os/exec"
@@ -52,23 +51,27 @@ func Run(ctx context.Context, c Config, id string) error {
 		if errors.Is(e, errPermanent) {
 			return e
 		}
-		slog.Warn("bridge disconnected; reconnect scheduled")
 		if time.Since(start) > time.Minute {
 			delay = time.Duration(c.Connection.ReconnectMin) * time.Second
 		}
-		t := time.NewTimer(delay/2 + time.Duration(rand.Int64N(int64(delay/2)+1)))
+		slog.Warn("bridge disconnected; reconnect scheduled", "retry_in", delay)
+		t := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
 			t.Stop()
 			return nil
 		case <-t.C:
 		}
-		delay *= 2
-		if delay > max {
-			delay = max
-		}
+		delay = nextReconnectDelay(delay, max)
 	}
 }
+func nextReconnectDelay(delay, max time.Duration) time.Duration {
+	if delay > max/5 {
+		return max
+	}
+	return delay * 5
+}
+
 func connect(ctx context.Context, c Config, id string) error {
 	u, _ := url.Parse(c.ServerURL)
 	if u.Scheme == "https" {

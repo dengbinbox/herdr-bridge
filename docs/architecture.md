@@ -225,7 +225,7 @@ connections:
   },
   "connection": {
     "reconnect_min_seconds": 1,
-    "reconnect_max_seconds": 30
+    "reconnect_max_seconds": 600
   }
 }
 ```
@@ -284,7 +284,7 @@ Vite 的 base 设置为 `/ui/`，构建产物交给 server 的 `web_ui.directory
 2. 代理携带用户 Key 发起 WebSocket 握手，server 校验 Key、账号状态和连接配额。
 3. 代理发送 `register`：协议版本、bridge_id、展示名称、代理版本、操作系统及支持能力。不上传 Key 以外的本机秘密。
 4. server 校验 ID 归属并回复 `registered`，分配此次连接的 `connection_id`。
-5. 双方维护心跳。控制连接中断后，代理采用指数退避加随机抖动重连。
+5. 双方维护心跳。控制连接中断后，代理默认按 1、5、25、125、600 秒的间隔退避重连，达到上限后每 10 分钟重试一次；连接持续超过 1 分钟后断开则重置退避。
 6. 在线状态区分“代理已在线”和“core 可用”；core 不可用时仍允许代理上线并报告脱敏错误。
 
 用户 Key 无效、被撤销、身份冲突与协议版本不兼容属于明确错误，不应高速重试；配置修正或人工处理后恢复。

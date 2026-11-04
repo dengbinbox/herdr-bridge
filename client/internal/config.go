@@ -33,7 +33,7 @@ func DefaultPaths() (string, string, error) {
 func LoadConfig(path string, dev bool) (Config, error) {
 	var c Config
 	c.Connection.ReconnectMin = 1
-	c.Connection.ReconnectMax = 30
+	c.Connection.ReconnectMax = 600
 	c.Core.Session = "default"
 	if !filepath.IsAbs(path) {
 		return c, errors.New("config path must be absolute")
@@ -62,7 +62,7 @@ func LoadConfig(path string, dev bool) (Config, error) {
 	if e != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") || (u.Scheme != "https" && !(dev && u.Scheme == "http")) {
 		return c, errors.New("server_url requires HTTPS origin; HTTP requires --dev")
 	}
-	if !strings.HasPrefix(c.Key, "hbk_") || len(c.Name) < 1 || len(c.Name) > 128 || c.Core.Binary == "" || c.Core.Session == "" || c.Connection.ReconnectMin < 1 || c.Connection.ReconnectMax < c.Connection.ReconnectMin || c.Connection.ReconnectMax > 300 {
+	if !strings.HasPrefix(c.Key, "hbk_") || len(c.Name) < 1 || len(c.Name) > 128 || c.Core.Binary == "" || c.Core.Session == "" || c.Connection.ReconnectMin < 1 || c.Connection.ReconnectMax < c.Connection.ReconnectMin || c.Connection.ReconnectMax > 600 {
 		return c, errors.New("invalid client configuration")
 	}
 	if !filepath.IsAbs(c.Core.Binary) {

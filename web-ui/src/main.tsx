@@ -271,7 +271,7 @@ function Keys() {
                   },
                   connection: {
                     reconnect_min_seconds: 1,
-                    reconnect_max_seconds: 30,
+                    reconnect_max_seconds: 600,
                   },
                 },
                 null,
