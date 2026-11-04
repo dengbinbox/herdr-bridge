@@ -1,9 +1,11 @@
+import { randomUUID } from "../uuid";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { api } from "../api";
 import { TerminalPane } from "../Terminal";
+import { createSpace } from "./space-service";
 import { useWorkspace } from "./useWorkspace";
 import {
   focusTree,
@@ -69,7 +71,7 @@ export function Workspace({
     look = useRef(new Set<string>()),
     written = useRef(new Map<string, string>()),
     [attentionVersion, bumpAttention] = useState(0);
-  const { core, records, native, state, warning, epochs, refresh } =
+  const { core, records, native, machines = [], state, warning, epochs, refresh } =
     useWorkspace(id, refreshAuth, (records) => {
       attention.current = updateAttention(
         attention.current,
@@ -279,12 +281,20 @@ export function Workspace({
         : [...v.collapsed, key],
     }));
   }
-  async function run() {
+  async function run(targetMachine?: string) {
     if (!core) return;
+    const destination = targetMachine ?? machine;
     try {
+      if (targetMachine !== undefined) {
+        const created = await createSpace(core, destination, destination === machine ? cwd : "");
+        setView((v) => ({ ...v, active: created.space, tabs: { ...v.tabs, [created.space]: created.tab } }));
+        refresh();
+        setError("");
+        return;
+      }
       const result = await core.call<{ address: string }>("terminal.run", {
-        cwd: cwd || undefined,
-        on: machine || undefined,
+        cwd: targetMachine === undefined ? cwd || undefined : undefined,
+        on: destination || undefined,
         env: {
           TERM: "xterm-256color",
           TERM_PROGRAM: "herdr-bridge",
@@ -292,13 +302,13 @@ export function Workspace({
         },
         no_parent: true,
       });
-      const address = qualify(result.address, machine);
-      if (space?.source === "web") addToWeb(address);
+      const address = qualify(result.address, destination);
+      if (targetMachine === undefined && space?.source === "web") addToWeb(address);
       else
         setView((v) => ({
           ...v,
-          active: `recovered:${machine}`,
-          tabs: { ...v.tabs, [`recovered:${machine}`]: `tab:${address}` },
+          active: `recovered:${destination}`,
+          tabs: { ...v.tabs, [`recovered:${destination}`]: `tab:${address}` },
         }));
     } catch (e) {
       setError(String(e));
@@ -337,10 +347,10 @@ export function Workspace({
     if (!space || space.source !== "web" || space.tabs.length < 2) return;
     const tabs = space.tabs;
     const merged = {
-      id: `split:${crypto.randomUUID()}`,
+      id: `split:${randomUUID()}`,
       name: "分屏",
       root: {
-        id: `split:${crypto.randomUUID()}`,
+        id: `split:${randomUUID()}`,
         type: "row" as const,
         children: tabs.map((t) => t.root),
       },
@@ -352,21 +362,6 @@ export function Workspace({
       ),
       tabs: { ...v.tabs, [space.id]: merged.id },
     }));
-  }
-  function addSpace() {
-    const name = window.prompt("网页空间名称");
-    if (!name?.trim()) return;
-    const folder = window.prompt("工作目录", cwd);
-    if (folder === null) return;
-    const s: Space = {
-      id: "web:" + crypto.randomUUID(),
-      name: name.trim(),
-      folder,
-      machine,
-      source: "web",
-      tabs: [],
-    };
-    setView((v) => ({ ...v, spaces: [...v.spaces, s], active: s.id }));
   }
   function addToWeb(address: string) {
     if (!space || space.source !== "web") return;
@@ -546,63 +541,71 @@ export function Workspace({
     <div className={styles.listPanel}>
       <header className={styles.sectionHead}>
         <h2>Spaces</h2>
-        <button aria-label="新增网页空间" onClick={addSpace}>
-          <Icon name="plus" />
-        </button>
       </header>
       <div className={styles.scroll}>
-        {spaces.map((s, i) => {
-          const prev = spaces[i - 1],
-            repo = repos[s.id],
-            shared =
-              repo &&
-              spaces
-                .slice(0, i)
-                .some(
-                  (x) =>
-                    x.machine === s.machine &&
-                    repos[x.id]?.common === repo.common,
-                );
-          return (
-            <React.Fragment key={s.id}>
-              {(!prev || prev.machine !== s.machine) && (
-                <div className={styles.groupTitle}>
-                  {s.machine || core?.machineName || "本机"}
-                </div>
-              )}
+        {[...new Set(["", ...machines.map((m) => m.name), ...spaces.map((s) => s.machine)])].sort().map((device) => (
+          <React.Fragment key={device}>
+            <div className={styles.groupTitle}>
+              {device || core?.machineName || "本机"}
               <button
-                className={styles.spaceRow}
-                aria-label={`空间 ${spaceName(s, records)}`}
-                data-selected={space?.id === s.id}
-                style={{ paddingLeft: shared ? 26 : 12 }}
-                onClick={() => select(s, view.tabs[s.id] || s.tabs[0]?.id)}
-                title={s.folder}
+                className={styles.deviceAdd}
+                aria-label={`在 ${device || core?.machineName || "本机"} 新增会话`}
+                title="新增会话"
+                disabled={!core || machines.some((m) => m.name === device && m.state !== "connected")}
+                onClick={() => void run(device)}
               >
-                {shared ? (
-                  <Icon name="branch" size={18} />
-                ) : (
-                  <span className={styles.spaceAvatar} aria-hidden="true">
-                    {Array.from(spaceName(s, records))[0]?.toUpperCase() || "?"}
-                  </span>
-                )}
-                <span>
-                  <strong>{spaceName(s, records)}</strong>
-                  <small>
-                    {s.unavailable ||
-                      repo?.branch ||
-                      s.folder ||
-                      (s.source === "core"
-                        ? "原生空间"
-                        : s.source === "web"
-                          ? "网页私有空间"
-                          : "恢复终端")}
-                  </small>
-                </span>
-                <small>{s.tabs.length}</small>
+                <Icon name="plus" />
               </button>
-            </React.Fragment>
-          );
-        })}
+            </div>
+            {spaces.filter((s) => s.machine === device).map((s) => {
+              const i = spaces.indexOf(s),
+                repo = repos[s.id],
+                shared =
+                  repo &&
+                  spaces
+                    .slice(0, i)
+                    .some(
+                      (x) =>
+                        x.machine === s.machine &&
+                        repos[x.id]?.common === repo.common,
+                    );
+              return (
+                <React.Fragment key={s.id}>
+                  <button
+                    className={styles.spaceRow}
+                    aria-label={`空间 ${spaceName(s, records)}`}
+                    data-selected={space?.id === s.id}
+                    style={{ paddingLeft: shared ? 26 : 12 }}
+                    onClick={() => select(s, view.tabs[s.id] || s.tabs[0]?.id)}
+                    title={s.folder}
+                  >
+                    {shared ? (
+                      <Icon name="branch" size={18} />
+                    ) : (
+                      <span className={styles.spaceAvatar} aria-hidden="true">
+                        {Array.from(spaceName(s, records))[0]?.toUpperCase() || "?"}
+                      </span>
+                    )}
+                    <span>
+                      <strong>{spaceName(s, records)}</strong>
+                      <small>
+                        {s.unavailable ||
+                          repo?.branch ||
+                          s.folder ||
+                          (s.source === "core"
+                            ? "原生空间"
+                            : s.source === "web"
+                              ? "网页私有空间"
+                              : "恢复终端")}
+                      </small>
+                    </span>
+                    <small>{s.tabs.length}</small>
+                  </button>
+                </React.Fragment>
+              );
+            })}
+          </React.Fragment>
+        ))}
         {!spaces.length && (
           <p className={styles.empty}>
             暂无空间。新建 Shell 后可在未分组中打开。

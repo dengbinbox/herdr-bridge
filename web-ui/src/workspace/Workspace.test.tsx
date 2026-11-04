@@ -306,3 +306,29 @@ it("does not mark the terminal seen while covered by the mobile panel", async ()
     }),
   );
 });
+
+it("creates sessions on the device whose plus button was clicked, even without spaces", async () => {
+  fixture.state.machines = [
+    { name: "remote", state: "connected" },
+    { name: "offline", state: "disconnected" },
+  ];
+  fixture.state.core.methods.push("terminal.run", "doc.get", "doc.set");
+  fixture.state.core.call.mockImplementation(async (method: string) =>
+    method === "doc.get" ? { version: 0, value: null } : { address: "new-session" },
+  );
+  mount();
+  await screen.findByRole("button", { name: "空间 Project One" });
+  expect(screen.queryByRole("button", { name: "新增网页空间" })).toBeNull();
+  expect(screen.getByRole("button", { name: "在 offline 新增会话" }).hasAttribute("disabled")).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "在 remote 新增会话" }));
+  await waitFor(() => expect(fixture.state.core.call).toHaveBeenCalledWith(
+    "terminal.run", expect.objectContaining({ on: "remote", cwd: undefined, no_parent: true }),
+  ));
+  await waitFor(() => expect(fixture.state.core.call).toHaveBeenCalledWith(
+    "doc.set", expect.objectContaining({ on: "remote", name: "herdr-app", version: 0 }),
+  ));
+  fireEvent.click(screen.getByRole("button", { name: "在 当前机器 新增会话" }));
+  await waitFor(() => expect(fixture.state.core.call).toHaveBeenCalledWith(
+    "terminal.run", expect.objectContaining({ on: undefined, cwd: "/one" }),
+  ));
+});

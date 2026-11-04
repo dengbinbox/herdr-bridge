@@ -101,7 +101,7 @@ type RPC = {
   jsonrpc?: string;
   id?: number;
   result?: unknown;
-  error?: { message: string };
+  error?: { message: string; data?: unknown };
   method?: string;
   params?: unknown;
 };
@@ -320,7 +320,7 @@ export class CoreClient {
     this.pending.delete(msg.id);
     clearTimeout(p.timer);
     if (msg.error) {
-      p.reject(new Error(msg.error.message));
+      p.reject(Object.assign(new Error(msg.error.message), { data: msg.error.data }));
       return;
     }
     try {

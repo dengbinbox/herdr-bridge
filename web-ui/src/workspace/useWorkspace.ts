@@ -9,6 +9,7 @@ export function useWorkspace(
 ) {
   const [core, setCore] = useState<CoreClient | null>(null),
     [records, setRecords] = useState<TerminalRecord[]>([]),
+    [machines, setMachines] = useState<{ name: string; state: string }[]>([]),
     [native, setNative] = useState<Space[]>([]),
     [state, setState] = useState("连接中"),
     [warning, setWarning] = useState(""),
@@ -58,6 +59,8 @@ export function useWorkspace(
                   "machine.list",
                 )
               : { machines: [] };
+            if (!valid()) break;
+            setMachines(result.machines || []);
             const targets = [
               { name: "", state: "connected" },
               ...(result.machines || []),
@@ -173,6 +176,7 @@ export function useWorkspace(
     core,
     records,
     native,
+    machines,
     state,
     warning,
     epochs,

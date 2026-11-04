@@ -139,6 +139,12 @@
   border: 0;
   text-align: left;
 }
+.deviceAdd {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 .groupTitle span {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
