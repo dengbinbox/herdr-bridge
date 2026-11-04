@@ -33,3 +33,5 @@ core 测试使用随机 `HC_SESSION`、独立 socket 和本目录临时 XDG 状�
 - [固定 core schema 来源](../contracts/core/SOURCE.md)。
 
 `.github/workflows/ci.yml` 适用于将本目录作为仓库根目录运行的 CI；若由外层单仓管理，应在外层工作流引用这些步骤。标签发布流程见 [发布说明](release.md)。
+
+`examples/client.json` 和 `examples/server.yaml` 是标准测试配置模板，见 [配置目录说明](../examples/README.md)。本地代理读取根目录 `client.json`，服务端和入口联调读取根目录 `config.yaml`；这两个本地文件均不纳入 Git。`TestLocalConfig` 直接检查根配置（使用测试入口密钥，不连接数据库）；边界条件单元测试继续使用隔离的最小配置。数据库集成测试使用独立测试数据库和 schema，避免操作根配置指向的实际数据库。

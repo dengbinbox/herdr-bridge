@@ -28,10 +28,6 @@ func Identity(dir string) (string, func(), error) {
 	}
 	b, e := os.ReadFile(path)
 	if e == nil {
-		if e = checkPrivate(path); e != nil {
-			release()
-			return "", nil, e
-		}
 		if json.Unmarshal(b, &state) != nil {
 			release()
 			return "", nil, errors.New("invalid identity state")

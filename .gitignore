@@ -12,6 +12,7 @@ test-results/
 /state/
 /config.json
 /config.yaml
+/client.json
 
 # Local debugger configuration may contain credentials.
 /.vscode/launch.json

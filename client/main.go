@@ -25,7 +25,7 @@ func main() {
 	flag.Parse()
 	c, e := client.LoadConfig(*path, *dev)
 	if e != nil {
-		slog.Error("configuration rejected", "error", e)
+		slog.Error("configuration rejected", "config", *path, "error", e)
 		os.Exit(1)
 	}
 	if *background && !*backgroundChild {

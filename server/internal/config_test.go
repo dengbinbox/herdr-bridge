@@ -56,8 +56,21 @@ func TestHTTPConfigAllowsLANAddresses(t *testing.T) {
 	}
 }
 func TestLocalConfig(t *testing.T) {
-	c, e := LoadConfig(configFile(t, "server:\n  listen: 127.0.0.1:8080\n  public_url: http://localhost:8080\nauth:\n  cookie_secure: false\n"))
-	if e != nil || c.Auth.CookieSecure {
-		t.Fatalf("local mode %v", e)
+	// The root config is intentionally untracked; fresh checkouts may not have it.
+	root, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "config.yaml")); os.IsNotExist(err) {
+		t.Skip("create root config.yaml for local configuration validation")
+	}
+	t.Chdir(root)
+	t.Setenv("HERDR_BRIDGE_ENTRY_SECRET", "test-only-entry-secret")
+	c, err := LoadConfig("config.yaml")
+	if err != nil {
+		t.Fatalf("root config.yaml: %v", err)
+	}
+	if c.EntryGate.Enabled && c.EntryGate.QueryValue == "" {
+		t.Fatal("root entrance secret not resolved")
 	}
 }

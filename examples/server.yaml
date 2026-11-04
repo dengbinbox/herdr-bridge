@@ -28,3 +28,12 @@ connections:
   max_tunnels_per_bridge: 16
   max_ws_message_bytes: 1048576
   max_buffer_bytes_per_tunnel: 4194304
+
+# Optional private entrance. Share its full URL outside this system.
+entry_gate:
+  enabled: false
+  path: /access/entrance
+  query_name: token
+  query_value_env: HERDR_BRIDGE_ENTRY_SECRET
+  cookie_name: hb_entry
+  cookie_ttl: 24h

@@ -81,7 +81,12 @@ func connect(ctx context.Context, c Config, id string) error {
 	}
 	u.Path = "/bridge/v1/connect"
 	dial, cancel := context.WithTimeout(ctx, 15*time.Second)
-	ws, res, e := websocket.Dial(dial, u.String(), &websocket.DialOptions{HTTPClient: &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, HTTPHeader: http.Header{"Authorization": []string{"Bearer " + c.Key}}})
+	httpClient, e := entryClient(dial, c)
+	if e != nil {
+		cancel()
+		return e
+	}
+	ws, res, e := websocket.Dial(dial, u.String(), &websocket.DialOptions{HTTPClient: httpClient, HTTPHeader: http.Header{"Authorization": []string{"Bearer " + c.Key}}})
 	cancel()
 	if e != nil {
 		if res != nil && res.Body != nil {

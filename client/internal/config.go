@@ -3,6 +3,7 @@ package client
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/url"
 	"os"
@@ -12,6 +13,7 @@ import (
 )
 
 type Config struct {
+	EntryURL  string `json:"entry_url"`
 	ServerURL string `json:"server_url"`
 	Key       string `json:"key"`
 	Name      string `json:"name"`
@@ -36,41 +38,54 @@ func LoadConfig(path string, dev bool) (Config, error) {
 	c.Connection.ReconnectMax = 600
 	c.Core.Session = "default"
 	if !filepath.IsAbs(path) {
-		return c, errors.New("config path must be absolute")
+		return c, fmt.Errorf("config path must be absolute: %q", path)
 	}
-	if e := checkPrivate(path); e != nil {
-		return c, e
+	// Normalize separators for native file operations.
+	path = filepath.Clean(path)
+	st, e := os.Stat(path)
+	if e != nil {
+		if errors.Is(e, os.ErrNotExist) {
+			return c, fmt.Errorf("config file %q not found; create this file or select its absolute path with --config: %w", path, e)
+		}
+		return c, fmt.Errorf("inspect config file %q: %w", path, e)
 	}
-	if e := checkPrivate(filepath.Dir(path)); e != nil {
-		return c, e
+	if !st.Mode().IsRegular() {
+		return c, fmt.Errorf("config path %q must be a regular JSON file", path)
 	}
 	f, e := os.Open(path)
 	if e != nil {
-		return c, e
+		return c, fmt.Errorf("open config file %q: %w", path, e)
 	}
 	defer f.Close()
 	d := json.NewDecoder(f)
 	d.DisallowUnknownFields()
 	if e = d.Decode(&c); e != nil {
-		return c, e
+		return c, fmt.Errorf("decode config JSON %q: %w", path, e)
 	}
 	var x any
 	if d.Decode(&x) != io.EOF {
-		return c, errors.New("trailing config data")
+		return c, fmt.Errorf("decode config JSON %q: trailing config data", path)
 	}
 	u, e := url.Parse(c.ServerURL)
 	if e != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") || (u.Scheme != "https" && !(dev && u.Scheme == "http")) {
 		return c, errors.New("server_url requires HTTPS origin; HTTP requires --dev")
 	}
+	if e := validateEntryURL(c.ServerURL, c.EntryURL); e != nil {
+		return c, e
+	}
 	if !strings.HasPrefix(c.Key, "hbk_") || len(c.Name) < 1 || len(c.Name) > 128 || c.Core.Binary == "" || c.Core.Session == "" || c.Connection.ReconnectMin < 1 || c.Connection.ReconnectMax < c.Connection.ReconnectMin || c.Connection.ReconnectMax > 600 {
 		return c, errors.New("invalid client configuration")
 	}
 	if !filepath.IsAbs(c.Core.Binary) {
-		return c, errors.New("core.binary must be an absolute executable path")
+		return c, fmt.Errorf("core.binary must be an absolute executable path: %q", c.Core.Binary)
 	}
-	if _, e = exec.LookPath(c.Core.Binary); e != nil {
-		return c, errors.New("core executable unavailable")
+	c.Core.Binary = filepath.Clean(c.Core.Binary)
+	binary, e := exec.LookPath(c.Core.Binary)
+	if e != nil {
+		return c, fmt.Errorf("core.binary executable %q unavailable: %w", c.Core.Binary, e)
 	}
+	// On Windows LookPath may resolve an omitted .exe extension.
+	c.Core.Binary = binary
 	return c, nil
 }
 func (c Config) environment() []string {

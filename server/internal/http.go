@@ -21,13 +21,14 @@ import (
 )
 
 type Server struct {
-	cfg        Config
-	db         *pgxpool.Pool
-	log        *slog.Logger
-	mu         sync.Mutex
-	agents     map[string]*agent
-	loginSlots chan struct{}
-	attempts   map[string]attempt
+	entrySecret string
+	cfg         Config
+	db          *pgxpool.Pool
+	log         *slog.Logger
+	mu          sync.Mutex
+	agents      map[string]*agent
+	loginSlots  chan struct{}
+	attempts    map[string]attempt
 }
 type attempt struct {
 	n     int
@@ -67,7 +68,7 @@ func Run(ctx context.Context, c Config) error {
 	return e
 }
 func New(c Config, db *pgxpool.Pool) *Server {
-	return &Server{cfg: c, db: db, log: slog.Default(), agents: map[string]*agent{}, loginSlots: make(chan struct{}, 4), attempts: map[string]attempt{}}
+	return &Server{entrySecret: token(32), cfg: c, db: db, log: slog.Default(), agents: map[string]*agent{}, loginSlots: make(chan struct{}, 4), attempts: map[string]attempt{}}
 }
 func jsonReply(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -123,6 +124,9 @@ func (s *Server) Handler() http.Handler {
 	m.HandleFunc("GET /ws/v1/bridges/{id}", s.auth(false, s.connectBrowser))
 	m.HandleFunc("GET /ui/", s.static)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !s.entryGate(w, r) {
+			return
+		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "same-origin")
 		w.Header().Set("X-Frame-Options", "DENY")

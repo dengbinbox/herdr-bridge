@@ -75,3 +75,27 @@ notepad (Join-Path $authDir 'config.json')
 配置至少修改 `server_url`、`key`、`core.binary`：服务器地址必须是这台客户端可访问的地址；Key 从网页复制；`core.binary` 填 `hc` 的绝对路径（Windows JSON 中反斜杠写成 `\\`，也可用 `C:/tools/hc.exe`）。`core.session` 默认 `default`，可换成自己的会话。启动后机器会出现在网页列表中。状态目录由程序自动创建和保护，不要将身份文件复制到另一台机器。
 
 后台运行、日志与重连设置见 [客户端配置与运行](client.md)。
+
+## 可选私有入口保护
+
+在服务端 YAML 配置中添加：
+
+```yaml
+entry_gate:
+  enabled: true
+  path: /hello/key
+  query_name: ttt
+  query_value_env: HERDR_BRIDGE_ENTRY_SECRET
+  cookie_name: hb_entry
+  cookie_ttl: 24h
+```
+
+路径、参数名、参数值和 Cookie 名称均可自定义。正确入口示例为 `https://你的域名/hello/key?ttt=你的入口密钥`，参数值有特殊字符时需要 URL 编码。入口仅接受 GET 和一个指定查询参数。访问成功设置 Cookie 并跳转 `/ui/` 登录页面；已有登录会话仍按正常页面逻辑处理。
+
+启用后，除正确入口外，所有请求（网页、静态文件、API、代理和浏览器 WebSocket）都先验证入口 Cookie；缺失、伪造、过期或入口参数错误统一返回空正文 404，不重定向。原有账号、权限和代理 Key 校验继续执行。未配置或 `enabled: false` 保持原行为。
+
+Cookie 使用每次签发独立的 256 位随机值及服务端签名，默认有效期 24 小时，服务端检查过期时间。设置 HttpOnly、SameSite=Lax、Path=/，Secure 跟随 `auth.cookie_secure`（HTTPS 部署应保持 true）。服务端重启后旧 Cookie 失效，网页需再次访问入口，代理重连会自动重新获取；已经建立的 WebSocket 不因 Cookie 到期而中断，下次握手需有效 Cookie。
+
+代理配置的 `entry_url` 必须由成员线下填写，网页生成配置始终留空；旧客户端需升级后才能连接受保护服务。入口地址不要写入反向代理访问日志；开启保护后，外部健康检查也受相同限制。
+
+`query_value_env` 填环境变量名，不是密钥本身。启动前设置该变量，例如首次生成可使用 `export HERDR_BRIDGE_ENTRY_SECRET="$(openssl rand -hex 32)"`，将该值保存到部署环境的秘密配置，后续启动保持一致。启用入口保护时，变量缺失、为空或仅含空白会拒绝启动；错误信息不会包含秘密。仍可使用明文 `query_value`，但两个字段不能同时填写。不会对 YAML 中的 `${...}` 自动插值。

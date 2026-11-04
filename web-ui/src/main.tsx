@@ -255,13 +255,13 @@ function Keys() {
           <Dialog.Content className={styles.dialog}>
             <Dialog.Title>Key 仅显示一次</Dialog.Title>
             <Dialog.Description>
-              保存以下配置到代理的 auth/config.json，并将权限设为
-              0600。关闭后无法找回秘密。
+              保存以下配置到代理的 auth/config.json。关闭后无法找回秘密。entry_url 留空；如启用了入口保护，请向系统成员线下获取地址并自行填写。
             </Dialog.Description>
             <pre>
               {JSON.stringify(
                 {
                   server_url: location.origin,
+                  entry_url: "",
                   key: secret,
                   name: "my-machine",
                   core: {

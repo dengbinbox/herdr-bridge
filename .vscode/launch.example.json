@@ -14,7 +14,8 @@
       ],
       "env": {
         "HERDR_BRIDGE_DATABASE_URL": "${input:databaseURL}",
-        "HERDR_BRIDGE_ADMIN_PASSWORD": "${input:adminPassword}"
+        "HERDR_BRIDGE_ADMIN_PASSWORD": "${input:adminPassword}",
+        "HERDR_BRIDGE_ENTRY_SECRET": "${input:entrySecret}"
       },
       "preLaunchTask": "Bridge: Build Web UI"
     },
@@ -26,6 +27,8 @@
       "program": "${workspaceFolder}/client",
       "cwd": "${workspaceFolder}",
       "args": [
+        "--config",
+        "${workspaceFolder}/client.json",
         "--dev"
       ]
     },
@@ -58,6 +61,12 @@
       "id": "adminPassword",
       "type": "promptString",
       "description": "首次初始化的管理员密码；数据库已有账号时可留空",
+      "password": true
+    },
+    {
+      "id": "entrySecret",
+      "type": "promptString",
+      "description": "入口密钥；未启用入口保护或使用明文 query_value 时可留空",
       "password": true
     }
   ]

@@ -10,8 +10,19 @@ import (
 	"time"
 )
 
+type EntryGateConfig struct {
+	QueryValueEnv string        `yaml:"query_value_env"`
+	Enabled       bool          `yaml:"enabled"`
+	Path          string        `yaml:"path"`
+	QueryName     string        `yaml:"query_name"`
+	QueryValue    string        `yaml:"query_value"`
+	CookieName    string        `yaml:"cookie_name"`
+	CookieTTL     time.Duration `yaml:"cookie_ttl"`
+}
+
 type Config struct {
-	Server struct {
+	EntryGate EntryGateConfig `yaml:"entry_gate"`
+	Server    struct {
 		Listen         string   `yaml:"listen"`
 		PublicURL      string   `yaml:"public_url"`
 		AllowedOrigins []string `yaml:"allowed_origins"`
@@ -59,6 +70,8 @@ func LoadConfig(path string) (Config, error) {
 	c.Database.ConnectTimeout = 5 * time.Second
 	c.Database.QueryTimeout = 10 * time.Second
 	c.Database.MaxConnLifetime = time.Hour
+	c.EntryGate.CookieName = "hb_entry"
+	c.EntryGate.CookieTTL = 24 * time.Hour
 	c.Auth.SessionTTL = 24 * time.Hour
 	c.Auth.CookieSecure = true
 	c.Auth.BootstrapAdmin.Username = "admin"
@@ -104,6 +117,12 @@ func LoadConfig(path string) (Config, error) {
 	}
 	if c.Auth.BootstrapAdmin.Username == "" || len(c.Auth.BootstrapAdmin.Username) > 128 || c.Auth.BootstrapAdmin.PasswordEnv == "" || c.Database.Driver != "postgres" || c.Database.DSNEnv == "" || c.Database.MinConns < 0 || c.Database.MaxConns < 1 || c.Database.MinConns > c.Database.MaxConns || c.Database.QueryTimeout <= 0 || c.Database.ConnectTimeout <= 0 || c.Database.MaxConnLifetime <= 0 || c.Auth.SessionTTL <= 0 || c.Connections.HeartbeatInterval < 100*time.Millisecond || c.Connections.HeartbeatTimeout < c.Connections.HeartbeatInterval || c.Connections.MaxBridgesPerUser < 1 || c.Connections.MaxTunnelsPerBridge < 1 || c.Connections.MaxTunnelsPerBridge > 1024 || c.Connections.MaxBufferBytesPerTunnel > 64<<20 || c.Connections.MaxWSMessageBytes < 1024 || c.Connections.MaxWSMessageBytes > 16<<20 || c.Connections.MaxBufferBytesPerTunnel < c.Connections.MaxWSMessageBytes {
 		return c, errors.New("invalid configuration limits")
+	}
+	if e := c.EntryGate.resolveSecret(); e != nil {
+		return c, e
+	}
+	if e := c.EntryGate.validate(); e != nil {
+		return c, e
 	}
 	if c.WebUI.Enabled {
 		if _, e := os.Stat(c.WebUI.Directory + "/index.html"); e != nil {

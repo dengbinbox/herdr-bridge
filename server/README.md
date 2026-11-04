@@ -5,7 +5,7 @@
 ```sh
 # 从 herdr-bridge 根目录执行
 go build -o dist/herdr-bridge-server ./server
-./dist/herdr-bridge-server --config examples/server.local.yaml
+./dist/herdr-bridge-server --config config.yaml
 ```
 
 配置、数据库准备、静态页面与测试见 [根目录说明](../README.md)。启动需要 PostgreSQL；不提供内存或 SQLite 生产替代模式。进程仅维护当前在线路由，因此首版使用单实例。
