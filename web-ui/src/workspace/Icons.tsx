@@ -70,27 +70,35 @@ export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
   );
 }
 export function programIdentity(t: TerminalRecord) {
-  const candidates = [
-    str(obj(t.status).app),
-    str(t.template),
-    str(obj(t.foreground).name),
-    ...(Array.isArray(obj(t.foreground).argv)
-      ? (obj(t.foreground).argv as unknown[])
-      : []),
-    ...(Array.isArray(t.argv) ? t.argv : []),
-  ].map((x) =>
-    basename(str(x))
-      .toLowerCase()
-      .replace(/\.exe$/, ""),
-  );
-  for (const candidate of candidates)
+  const normalize = (value: unknown) => basename(str(value).replace(/\\/g, "/"))
+    .toLowerCase().replace(/^-+/, "").replace(/\.exe$/, "");
+  const match = (value: unknown) => {
+    const candidate = normalize(value);
     for (const [id, p] of Object.entries(programs))
       if (p.match.includes(candidate)) return { id, ...p };
-  return { id: "agent", ...programs.agent };
+  };
+  const reported = str(obj(t.report).app) || str(obj(t.status).app);
+  if (reported) return match(reported) || { id: "agent", ...programs.agent };
+  // Foreground data describes the current process; launch argv may be stale.
+  const foreground = obj(t.foreground);
+  const argv = Array.isArray(foreground.argv) && foreground.argv.length
+    ? foreground.argv
+    : foreground.name ? [] : Array.isArray(t.argv) ? t.argv : [];
+  const candidates = [foreground.name, ...argv];
+  for (const candidate of candidates) {
+    const program = match(candidate);
+    if (program) return program;
+  }
+  if (str(obj(t.status).state)) return { id: "agent", ...programs.agent };
+  const name = normalize(foreground.name || argv[0]);
+  const shell = !name || ["zsh", "bash", "fish", "sh", "dash", "nu", "pwsh", "powershell", "cmd", "elvish", "xonsh", "tcsh", "csh", "ksh", "ion"].includes(name);
+  return { id: shell ? "shell" : "terminal", name: shell ? "Shell" : name, tint: true };
 }
 export function ProgramIcon({ record }: { record: TerminalRecord }) {
   const p = programIdentity(record),
     url = images[`./icons/${p.id}.svg`];
+  if (p.id === "shell" || p.id === "terminal")
+    return <span role="img" aria-label={p.name} className={styles.programIcon}><Icon name="terminal" size={18} /></span>;
   return p.tint ? (
     <span
       role="img"

@@ -79,3 +79,13 @@ it("uses reported program identity, with a generic icon for unknown agents and a
       .id,
   ).toBe("agent");
 });
+
+it("follows the current foreground program instead of stale launch argv", () => {
+  const terminal = { address: "t1", state: "live", rows: 24, cols: 80, argv: ["bash"] };
+  expect(programIdentity(terminal).id).toBe("shell");
+  expect(programIdentity({ ...terminal, foreground: { argv: ["/usr/bin/codex"] } }).id).toBe("codex");
+  expect(programIdentity({ ...terminal, argv: ["codex"], foreground: { argv: ["/bin/bash"] } }).id).toBe("shell");
+  expect(programIdentity({ ...terminal, argv: ["codex"], foreground: { name: "bash" } }).id).toBe("shell");
+  expect(programIdentity({ ...terminal, report: { app: "claude-code" } }).id).toBe("claude");
+  expect(programIdentity({ ...terminal, foreground: { argv: ["C:\\bin\\codex.exe"] } }).id).toBe("codex");
+});

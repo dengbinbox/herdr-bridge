@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useRef, type CSSProperties } from "react";
 import { createRoot } from "react-dom/client";
 import {
   BrowserRouter,
@@ -450,7 +450,19 @@ function WorkspaceRoute() {
 function App() {
   const workspacePage = useLocation().pathname.startsWith("/bridges/");
   const [user, setUser] = useState<User | null>(null),
-    [loading, setLoading] = useState(true);
+    [loading, setLoading] = useState(true),
+    [headerHidden, setHeaderHidden] = useState(false),
+    [headerHeight, setHeaderHeight] = useState(window.innerWidth < 1000 ? 48 : 68);
+  const headerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = headerRef.current;
+    if (!element) return;
+    const measure = () => setHeaderHeight(element.getBoundingClientRect().height);
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    measure();
+    return () => observer.disconnect();
+  }, [user, loading, headerHidden]);
   const query = useQueryClient();
   async function refresh() {
     try {
@@ -475,7 +487,14 @@ function App() {
         <Login />
       ) : (
         <>
+          <div ref={headerRef}>
+          {headerHidden ? (
+            <div className={styles.headerReveal}>
+              <button aria-expanded={false} aria-controls="app-navigation" onClick={() => setHeaderHidden(false)}>显示顶部导航 ▾</button>
+            </div>
+          ) : (
           <header
+            id="app-navigation"
             className={`${styles.topbar} ${workspacePage ? styles.workspaceTopbar : ""}`}
           >
             <Link to="/">Herdr Bridge</Link>
@@ -500,9 +519,13 @@ function App() {
             >
               退出
             </button>
+            <button aria-label="隐藏顶部导航" title="隐藏顶部导航" aria-expanded={true} aria-controls="app-navigation" onClick={() => setHeaderHidden(true)}>收起 ▴</button>
           </header>
+          )}
+          </div>
           <main
             className={`${styles.main} ${workspacePage ? styles.workspaceMain : ""}`}
+            style={{ "--workspace-header-height": `${headerHeight}px`, "--workspace-top-offset": `${headerHeight + 48}px` } as CSSProperties}
           >
             {user.must_change_password ? (
               <Password />

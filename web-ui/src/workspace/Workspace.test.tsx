@@ -204,6 +204,7 @@ it("preserves file selection across inspector tabs and saves only private struct
   await screen.findByText("没有未提交修改");
   fireEvent.click(screen.getByRole("tab", { name: "Files" }));
   expect(screen.getByText("Hello file")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "工作台操作" }));
   fireEvent.click(screen.getByRole("button", { name: "保存布局" }));
   await waitFor(() =>
     expect(fixture.api).toHaveBeenCalledWith(

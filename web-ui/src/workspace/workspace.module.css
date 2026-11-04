@@ -1,5 +1,5 @@
 .workspace {
-  height: calc(100dvh - 116px);
+  height: calc(100dvh - var(--workspace-top-offset, 116px));
   min-height: 420px;
   display: flex;
   flex-direction: column;
@@ -292,6 +292,9 @@
   flex: 1;
 }
 .tabHeader button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   white-space: nowrap;
   min-width: 32px;
   border-color: transparent;
@@ -868,7 +871,7 @@
 }
 @media (max-width: 999px) {
   .workspace {
-    height: calc(var(--viewport-height, 100dvh) - 48px);
+    height: calc(var(--viewport-height, 100dvh) - var(--workspace-header-height, 48px));
     min-height: 0;
     border: 0;
     border-radius: 0;
@@ -995,4 +998,51 @@
   width: 100%;
   padding: 8px 12px;
   text-align: left;
+}
+
+.sidebarDivider {
+  flex-basis: 7px;
+  background: #a2adbc;
+  border-top: 1px solid #8d99aa;
+  border-bottom: 1px solid #8d99aa;
+}
+.actionsMenu {
+  position: relative;
+}
+.actionsMenu summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  min-height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  list-style: none;
+}
+.actionsMenu summary::-webkit-details-marker { display: none; }
+.actionsMenu summary:focus-visible { outline: 3px solid #86aff7; }
+.actionsDropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  min-width: 145px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 8px 24px #0002;
+}
+.actionsDropdown button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border-color: transparent;
+  padding: 9px 12px;
+}
+.actionsDropdown button:hover { background: #edf2fa; }
+@media (max-width: 999px) {
+  .actionsMenu summary { min-height: 38px; }
 }

@@ -37,7 +37,7 @@ import {
 import { InspectorPanel } from "./InspectorPanel";
 import { repositoryInfo } from "./git-service";
 import styles from "./workspace.module.css";
-import { Icon, ProgramIcon, AgentStatus } from "./Icons";
+import { Icon, ProgramIcon, AgentStatus, programIdentity } from "./Icons";
 import app from "../app.module.css";
 export function Workspace({
   refreshAuth,
@@ -69,6 +69,15 @@ export function Workspace({
     [repos, setRepos] = useState<
       Record<string, Awaited<ReturnType<typeof repositoryInfo>>>
     >({});
+  const actionsMenu = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const dismiss = (event: PointerEvent) => {
+      if (actionsMenu.current && !actionsMenu.current.contains(event.target as globalThis.Node))
+        actionsMenu.current.open = false;
+    };
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, []);
   const attention = useRef(new Map<string, Attention>()),
     look = useRef(new Set<string>()),
     written = useRef(new Map<string, string>()),
@@ -774,7 +783,7 @@ export function Workspace({
         >
           {spacesPanel}
         </Panel>
-        <Separator className={styles.separator} />
+        <Separator className={`${styles.separator} ${styles.sidebarDivider}`} />
         <Panel id="agents" minSize="20%">
           {agentsPanel}
         </Panel>
@@ -816,23 +825,32 @@ export function Workspace({
           {state}
         </span>
         <div className={styles.toolbarActions}>
-          <button
-            className={styles.desktopAction}
-            disabled={!core}
-            onClick={() => void run()}
+          <details
+            ref={actionsMenu}
+            className={styles.actionsMenu}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && actionsMenu.current) {
+                actionsMenu.current.open = false;
+                actionsMenu.current.querySelector("summary")?.focus();
+              }
+            }}
           >
-            新建 Shell
-          </button>
-          <button className={styles.desktopAction} onClick={refresh}>
-            刷新终端
-          </button>
-          <button
-            className={styles.desktopAction}
-            disabled={saving || !loaded}
-            onClick={() => void save()}
-          >
-            {saving ? "保存中…" : "保存布局"}
-          </button>
+            <summary role="button" aria-label="工作台操作">操作 <Icon name="chevron-down" size={13} /></summary>
+            <div className={styles.actionsDropdown}>
+              <button disabled={!core} onClick={() => {
+                if (actionsMenu.current) actionsMenu.current.open = false;
+                void run();
+              }}>新建 Shell</button>
+              <button onClick={() => {
+                if (actionsMenu.current) actionsMenu.current.open = false;
+                refresh();
+              }}>刷新终端</button>
+              <button disabled={saving || !loaded} onClick={() => {
+                if (actionsMenu.current) actionsMenu.current.open = false;
+                void save();
+              }}>{saving ? "保存中…" : "保存布局"}</button>
+            </div>
+          </details>
           <button
             aria-expanded={
               narrow
@@ -879,15 +897,24 @@ export function Workspace({
               <header className={styles.tabHeader}>
                 <span>{space ? spaceName(space, records) : "Workspace"}</span>
                 <nav aria-label="终端标签">
-                  {space?.tabs.map((t, i) => (
-                    <button
+                  {space?.tabs.map((t, i) => {
+                    const available = panes(t.root).map((p) => ({
+                      pane: p,
+                      record: records.find((r) => r.address === p.terminal),
+                    })).filter((p) => p.record);
+                    const focused = view.focus[t.id] || (t.id === tab?.id ? focus : undefined);
+                    const lead = available.find((p) => p.pane.id === focused)
+                      || available.find((p) => !["shell", "terminal"].includes(programIdentity(p.record!).id))
+                      || available[0];
+                    return <button
                       key={t.id}
                       aria-pressed={t.id === tab?.id}
                       onClick={() => select(space, t.id)}
                     >
-                      {t.name || i + 1}
-                    </button>
-                  ))}
+                      {lead?.record && <ProgramIcon record={lead.record} />}
+                      <span>{t.name || i + 1}</span>
+                    </button>;
+                  })}
                 </nav>
                 {narrow && allShownPanes.length > 1 && (
                   <select

@@ -376,3 +376,18 @@ input:focus-visible {
     font-size: 16px;
   }
 }
+
+.headerReveal {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: 28px;
+  padding: 2px 12px;
+  border-bottom: 1px solid var(--border);
+  background: white;
+}
+.headerReveal button {
+  padding: 2px 8px;
+  font-size: 12px;
+  border-color: transparent;
+}
