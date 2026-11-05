@@ -254,6 +254,7 @@ func (l *link) open(ctx context.Context, m protocol.Control) {
 			}
 		}()
 		cmd := exec.CommandContext(ctx, l.cfg.Core.Binary, "connect")
+		configureCoreProcess(cmd)
 		cmd.Env = l.cfg.environment()
 		var diagnostics stderrSummary
 		cmd.Stderr = &diagnostics
@@ -335,6 +336,7 @@ func (l *link) coreAvailable(parent context.Context) bool {
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, l.cfg.Core.Binary, "connect")
+	configureCoreProcess(cmd)
 	cmd.Env = l.cfg.environment()
 	var diagnostics stderrSummary
 	cmd.Stderr = &diagnostics
