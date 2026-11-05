@@ -90,18 +90,12 @@ export function terminalTab(address: string, observe = false, scope = ""): Tab {
     },
   };
 }
-export function spaceName(s: Space, records: TerminalRecord[]) {
+export function spaceCwd(s: Space, records: TerminalRecord[]) {
   const first = s.tabs.flatMap((t) => panes(t.root))[0];
-  return (
-    s.name ||
-    basename(
-      cwdOf(
-        records.find((t) => t.address === first?.terminal),
-        s,
-      ),
-    ) ||
-    "未命名空间"
-  );
+  return cwdOf(records.find((t) => t.address === first?.terminal), s);
+}
+export function spaceName(s: Space, records: TerminalRecord[], repositoryRoot?: string) {
+  return s.name || basename(repositoryRoot || spaceCwd(s, records)) || "~";
 }
 export function nativeLayout(
   value: unknown,

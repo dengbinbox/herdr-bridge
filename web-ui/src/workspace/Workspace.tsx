@@ -16,6 +16,7 @@ import {
   panes,
   shown,
   spaceName,
+  spaceCwd,
   cwdOf,
   machineOf,
   terminalTab,
@@ -35,7 +36,7 @@ import {
   type Attention,
 } from "./agent-state";
 import { InspectorPanel } from "./InspectorPanel";
-import { repositoryInfo } from "./git-service";
+import { repositoryInfo, isLinkedWorktree } from "./git-service";
 import styles from "./workspace.module.css";
 import { Icon, ProgramIcon, AgentStatus, programIdentity } from "./Icons";
 import app from "../app.module.css";
@@ -67,7 +68,7 @@ export function Workspace({
       window.visualViewport?.height || window.innerHeight,
     ),
     [repos, setRepos] = useState<
-      Record<string, Awaited<ReturnType<typeof repositoryInfo>>>
+      Record<string, { core: import("../core").CoreClient; cwd: string; machine: string; info: Awaited<ReturnType<typeof repositoryInfo>> }>
     >({});
   const actionsMenu = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
@@ -105,7 +106,7 @@ export function Workspace({
   }, [spaceMenu]);
   async function closeSelectedSpace(s: Space) {
     setSpaceMenu(null);
-    if (!core || closingSpace || !window.confirm(`关闭空间“${spaceName(s, records)}”？这会结束其中的所有终端。`)) return;
+    if (!core || closingSpace || !window.confirm(`关闭空间“${displayName(s)}”？这会结束其中的所有终端。`)) return;
     setClosingSpace(s.id);
     try {
       if (s.source === "core") {
@@ -239,15 +240,18 @@ export function Workspace({
     if (held && held !== address) setHeld("");
   }, [address, held]);
   // Metadata refreshes are bounded and only run in the foreground. Each response belongs to this connection.
+  function repoFor(s: Space) {
+    const cached = repos[s.id];
+    return cached?.core === core && cached.machine === s.machine && cached.cwd === spaceCwd(s, records)
+      ? cached.info : null;
+  }
+  function displayName(s: Space) {
+    return spaceName(s, records, repoFor(s)?.folder);
+  }
   const repoContexts = spaces.map((s) => ({
     id: s.id,
     machine: s.machine,
-    cwd: cwdOf(
-      records.find(
-        (r) => r.address === s.tabs.flatMap((t) => panes(t.root))[0]?.terminal,
-      ),
-      s,
-    ),
+    cwd: spaceCwd(s, records),
   }));
   const repoKey = JSON.stringify(repoContexts);
   const activityKey = records
@@ -268,7 +272,7 @@ export function Workspace({
         if (!ctx.cwd) continue;
         try {
           const r = await repositoryInfo(core!, ctx);
-          if (live) setRepos((old) => ({ ...old, [ctx.id]: r }));
+          if (live) setRepos((old) => ({ ...old, [ctx.id]: { core: core!, cwd: ctx.cwd, machine: ctx.machine, info: r } }));
         } catch {
           /* Inspector reports detailed read failures; missing Git metadata does not hide spaces. */
         }
@@ -602,22 +606,16 @@ export function Workspace({
               </button>
             </div>
             {spaces.filter((s) => s.machine === device).map((s) => {
-              const i = spaces.indexOf(s),
-                repo = repos[s.id],
-                shared =
-                  repo &&
-                  spaces
-                    .slice(0, i)
-                    .some(
-                      (x) =>
-                        x.machine === s.machine &&
-                        repos[x.id]?.common === repo.common,
-                    );
+              const repo = repoFor(s),
+                shared = repo && isLinkedWorktree(repo) && spaces.some((x) => {
+                  const main = repoFor(x);
+                  return x.machine === s.machine && main && !isLinkedWorktree(main) && main.common === repo.common;
+                });
               return (
                 <React.Fragment key={s.id}>
                   <button
                     className={styles.spaceRow}
-                    aria-label={`空间 ${spaceName(s, records)}`}
+                    aria-label={`空间 ${displayName(s)}`}
                     data-selected={space?.id === s.id}
                     style={{ paddingLeft: shared ? 26 : 12 }}
                     onClick={() => select(s, view.tabs[s.id] || s.tabs[0]?.id)}
@@ -631,11 +629,11 @@ export function Workspace({
                       <Icon name="branch" size={18} />
                     ) : (
                       <span className={styles.spaceAvatar} aria-hidden="true">
-                        {Array.from(spaceName(s, records))[0]?.toUpperCase() || "?"}
+                        {Array.from(displayName(s))[0]?.toUpperCase() || "?"}
                       </span>
                     )}
                     <span>
-                      <strong>{spaceName(s, records)}</strong>
+                      <strong>{displayName(s)}</strong>
                       <small>
                         {s.unavailable ||
                           repo?.branch ||
@@ -756,7 +754,7 @@ export function Workspace({
             >
               {view.collapsed.includes(group) ? "▸" : "▾"}{" "}
               {view.grouped && group !== "Pinned"
-                ? spaceName(rs[0].space, records)
+                ? displayName(rs[0].space)
                 : group}
               <span>{rs.length}</span>
             </button>
@@ -895,7 +893,7 @@ export function Workspace({
           <Panel id="center" minSize={narrow ? "15%" : "25%"}>
             <div className={styles.center}>
               <header className={styles.tabHeader}>
-                <span>{space ? spaceName(space, records) : "Workspace"}</span>
+                <span>{space ? displayName(space) : "Workspace"}</span>
                 <nav aria-label="终端标签">
                   {space?.tabs.map((t, i) => {
                     const available = panes(t.root).map((p) => ({

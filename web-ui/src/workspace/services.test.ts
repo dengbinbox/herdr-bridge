@@ -14,6 +14,7 @@ import {
   diffLines,
   gitStatus,
   gitDiff,
+  isLinkedWorktree,
 } from "./git-service";
 const ctx = { machine: "remote", cwd: "/project" };
 function client(handler: (method: string, params: any) => unknown) {
@@ -155,4 +156,10 @@ it("keeps content beginning with plus/minus signs inside a hunk as content", () 
   const parsed = diffLines("@@ -1 +1 @@\n--- old content\n+++ new content");
   expect(parsed.lines[1]).toMatchObject({ kind: "remove", old: 1 });
   expect(parsed.lines[2]).toMatchObject({ kind: "add", next: 1 });
+});
+
+it("distinguishes main checkouts from linked worktrees, including Windows paths", () => {
+  expect(isLinkedWorktree({ folder: "/repo", common: "/repo/.git" })).toBe(false);
+  expect(isLinkedWorktree({ folder: "/feature", common: "/repo/.git" })).toBe(true);
+  expect(isLinkedWorktree({ folder: "C:\\repo", common: "C:/repo/.git" })).toBe(false);
 });

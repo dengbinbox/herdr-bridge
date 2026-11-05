@@ -198,3 +198,9 @@ export async function repositoryInfo(core: CoreClient, ctx: Context) {
     branch: branch.stdout.split("\n")[0].replace(/^## /, ""),
   };
 }
+
+// Match the app's distinction between the main checkout and linked worktrees.
+export function isLinkedWorktree(repo: { folder: string; common: string }) {
+  const normalize = (path: string) => path.replace(/\\/g, "/").replace(/\/+$/, "");
+  return normalize(repo.common) !== `${normalize(repo.folder)}/.git`;
+}

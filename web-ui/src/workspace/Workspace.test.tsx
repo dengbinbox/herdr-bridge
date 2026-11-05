@@ -18,6 +18,7 @@ const fixture = vi.hoisted(() => ({
   list: vi.fn(),
   read: vi.fn(),
   git: vi.fn(),
+  repository: vi.fn(),
 }));
 vi.mock("../api", () => ({ api: fixture.api }));
 vi.mock("./useWorkspace", () => ({ useWorkspace: () => fixture.state }));
@@ -28,7 +29,7 @@ vi.mock("./file-service", () => ({
 }));
 vi.mock("./git-service", async () => ({
   ...(await vi.importActual("./git-service")),
-  repositoryInfo: async () => null,
+  repositoryInfo: fixture.repository,
   gitStatus: fixture.git,
 }));
 vi.mock("../Terminal", () => ({
@@ -58,6 +59,7 @@ beforeEach(() => {
     configurable: true,
   });
   vi.spyOn(document, "hasFocus").mockReturnValue(true);
+  fixture.repository.mockResolvedValue(null);
   fixture.api.mockResolvedValue({ version: 0, document: null });
   fixture.list.mockResolvedValue({
     entries: [{ name: "README.md", directory: false }],
@@ -350,4 +352,60 @@ it("offers Close on a space context menu and confirms before ending its terminal
   fireEvent.click(screen.getByRole("menuitem", { name: "Close · 关闭空间" }));
   await waitFor(() => expect(fixture.state.core.call).toHaveBeenCalledWith("terminal.kill", { terminal: "t1" }));
   await waitFor(() => expect(fixture.state.core.call).toHaveBeenCalledWith("doc.set", expect.objectContaining({ value: { spaces: [] } })));
+});
+
+it("uses the Core repository root for the space avatar and discards it after cd", async () => {
+  fixture.state.core.methods.push("machine.exec");
+  fixture.state.native[0].name = "";
+  fixture.state.records[0].foreground = { cwd: "/projects/herdr/src" };
+  fixture.repository.mockImplementation(async (_core, ctx) => ctx.cwd === "/projects/herdr/src"
+    ? { folder: "/projects/herdr", common: "/projects/herdr/.git", branch: "main" }
+    : null);
+  const view = mount();
+  const row = await screen.findByRole("button", { name: "空间 herdr" });
+  expect(row.querySelector('[aria-hidden="true"]')?.textContent).toBe("H");
+  expect(fixture.repository).toHaveBeenCalledWith(fixture.state.core, expect.objectContaining({ cwd: "/projects/herdr/src", machine: "" }));
+  fixture.repository.mockImplementation(() => new Promise(() => {}));
+  fixture.state.records = fixture.state.records.map((r: any) => r.address === "t1" ? { ...r, foreground: { cwd: "/notes" } } : r);
+  view.rerender(
+    <MemoryRouter initialEntries={["/bridges/test"]}>
+      <Routes><Route path="/bridges/:id" element={<Workspace refreshAuth={async () => {}} />} /></Routes>
+    </MemoryRouter>,
+  );
+  const moved = await screen.findByRole("button", { name: "空间 notes" });
+  expect(moved.querySelector('[aria-hidden="true"]')?.textContent).toBe("N");
+  expect(screen.queryByRole("button", { name: "空间 herdr" })).toBeNull();
+});
+
+it("keeps letter avatars for multiple spaces in the same main checkout", async () => {
+  fixture.state.core.methods.push("machine.exec");
+  fixture.repository.mockResolvedValue({ folder: "/repo", common: "/repo/.git", branch: "main" });
+  mount();
+  await waitFor(() => expect(fixture.repository).toHaveBeenCalledTimes(2));
+  for (const name of ["Project One", "Project Two"]) {
+    const row = screen.getByRole("button", { name: `空间 ${name}` });
+    expect(row.querySelector('span[aria-hidden="true"]')?.textContent).toBe("P");
+  }
+});
+
+it("shows a branch avatar only for a linked worktree with its main checkout listed", async () => {
+  fixture.state.core.methods.push("machine.exec");
+  fixture.repository.mockImplementation(async (_core, ctx) => ctx.cwd === "/one"
+    ? { folder: "/feature", common: "/repo/.git", branch: "feature" }
+    : null);
+  mount();
+  await waitFor(() => expect(fixture.repository).toHaveBeenCalledTimes(2));
+  const row = screen.getByRole("button", { name: "空间 Project One" });
+  expect(row.querySelector('span[aria-hidden="true"]')?.textContent).toBe("P");
+  cleanup();
+  fixture.repository.mockImplementation(async (_core, ctx) => ({
+    folder: ctx.cwd === "/one" ? "/feature" : "/repo", common: "/repo/.git", branch: "main",
+  }));
+  mount();
+  await waitFor(() => {
+    const linked = screen.getByRole("button", { name: "空间 Project One" });
+    expect(linked.querySelector('span[aria-hidden="true"]')).toBeNull();
+    expect(linked.querySelector("svg")).not.toBeNull();
+  });
+  expect(screen.getByRole("button", { name: "空间 Project Two" }).querySelector('span[aria-hidden="true"]')?.textContent).toBe("P");
 });

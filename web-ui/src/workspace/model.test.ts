@@ -208,3 +208,23 @@ describe("agent attention and groups", () => {
     expect(store.list()[0]).toMatchObject({ state: "live", turn: 4 });
   });
 });
+
+
+describe("space names from Core paths", () => {
+  const space = { ...nativeLayout(document, "box").spaces[0], name: "" };
+  const records = [t("box/t1", undefined, { cwd: "/old", foreground: { cwd: "/projects/herdr/src" } }), t("box/t2", undefined, { cwd: "/other" })];
+  it("prefers the checkout root and keeps explicit names", () => {
+    expect(spaceName(space, records, "/projects/herdr")).toBe("herdr");
+    expect(spaceName({ ...space, name: "Custom" }, records, "/projects/herdr")).toBe("Custom");
+    expect(spaceName(space, records, "/worktrees/feature")).toBe("feature");
+  });
+  it("falls back to the first terminal foreground path, record path, then space folder", () => {
+    expect(spaceName(space, records)).toBe("src");
+    expect(spaceName(space, [t("box/t1", undefined, { cwd: "/projects/docs" })])).toBe("docs");
+    expect(spaceName(space, [])).toBe("same");
+    expect(spaceName({ ...space, folder: "" }, [])).toBe("~");
+  });
+  it("handles Windows paths and Unicode names", () => {
+    expect(spaceName(space, records, "C:\\projects\\项目\\")).toBe("项目");
+  });
+});
