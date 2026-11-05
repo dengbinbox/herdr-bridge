@@ -39,9 +39,24 @@ Test-Path -LiteralPath "$env:USERPROFILE\.herdr-bridge\auth\config.json" -PathTy
 
 ## 后台运行与断线重连
 
-使用 `herdr-bridge --background`（Windows：`.\herdr-bridge.exe --background`）后台启动，可与 `--config`、`--state-dir`、`--dev` 一起使用。启动命令在配置加载完成、身份锁获取成功后返回进程号；这不代表已连接服务器。关闭终端后客户端继续运行，不会自动设置开机启动。
+默认后台运行，关闭终端后继续运行；不会自动设置开机启动。支持以下命令（Windows 使用 `herdr-bridge.exe`）：
 
-后台日志追加写入状态目录的 `bridge.log`（默认 `~/.herdr-bridge/state/bridge.log`）。同一状态目录只允许一个实例。停止时，Linux / macOS 使用 `kill <进程号>`，Windows PowerShell 使用 `Stop-Process -Id <进程号>`。
+```sh
+herdr-bridge                 # 默认后台启动，等同于 start
+herdr-bridge start           # 后台启动
+herdr-bridge --foreground    # 前台运行，Ctrl+C 停止
+herdr-bridge stop            # 优雅停止，已停止时也成功
+herdr-bridge restart         # 停止后重新后台启动
+herdr-bridge status          # 查看运行状态、PID、配置和日志路径
+```
+
+子命令放在参数前，可通过 `--state-dir` 选择实例。`start/restart` 支持 `--config`、`--dev` 和 `--foreground`；旧参数 `--background` 继续兼容，但不能与 `--foreground` 同时使用。
+
+`restart` 默认沿用运行实例的配置路径和 `--dev` 设置，显式参数可覆盖（`--dev=false` 关闭开发模式）；实例未运行时使用默认或指定配置启动。重启前先验证配置，停止超时则报错，不强制杀进程。`stop/status` 不依赖配置文件有效。旧版客户端没有本地控制接口，需先按原方式停止并升级。
+
+后台日志追加写入状态目录的 `bridge.log`（默认 `~/.herdr-bridge/state/bridge.log`），前台日志输出到终端。启动命令在配置加载、身份锁和本机控制接口就绪后返回 PID，不代表已连接服务器。`status` 的运行状态也不代表服务器连接状态。
+
+同一状态目录只允许一个实例。本机控制接口仅监听 `127.0.0.1` 的随机端口，通过私有状态文件中的随机令牌认证。停止会关闭代理连接与 `hc connect` 子进程，不停止 herdr-core 服务或删除终端会话。
 
 前台和后台均自动重试首次连接失败或网络断开，默认间隔为 **1s → 5s → 25s → 125s → 600s**，之后每 10 分钟重试一次，没有重试次数限制。连接持续超过 1 分钟后断开，间隔重新从 1 秒开始。日志会显示下一次重试间隔；Key 无效、注册被拒绝等不可恢复错误会退出。
 

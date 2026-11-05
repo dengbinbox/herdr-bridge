@@ -76,7 +76,7 @@ func TestIntegrationRealAgentAndCore(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	t.Cleanup(cancel)
-	agent := exec.CommandContext(ctx, exe, "--dev", "--config", path, "--state-dir", filepath.Join(dir, "identity"))
+	agent := exec.CommandContext(ctx, exe, "--foreground", "--dev", "--config", path, "--state-dir", filepath.Join(dir, "identity"))
 	agent.Env = env
 	agent.Stderr = io.Discard
 	if e = agent.Start(); e != nil {

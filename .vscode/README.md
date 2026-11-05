@@ -2,6 +2,8 @@
 
 首次检出后，将 `.vscode/launch.example.json` 复制为 `.vscode/launch.json`。实际启动文件可能包含本机密码，已排除 Git 跟踪；仓库只保存使用输入提示的模板。已有本地启动文件时无需覆盖。
 
+客户端默认后台运行；调试模板使用 `--foreground`，让 VS Code 控制进程启停。已有本地 `launch.json` 时，请在 **Bridge: Agent (local)** 的 `args` 中补充 `--foreground`。
+
 服务端读取根目录 `config.yaml`，客户端读取根目录 `client.json`。首次使用分别从 `examples/server.yaml`、`examples/client.json` 复制，填写本机配置。两个根目录文件均被 Git 忽略；已有文件请勿覆盖。
 
 打开 `herdr-bridge/herdr-bridge.code-workspace`，或者直接以 `herdr-bridge` 为 VS Code 根目录。仅打开外层 `herdr` 文件夹不会自动加载子目录的 launch.json。

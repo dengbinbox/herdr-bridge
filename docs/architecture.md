@@ -244,7 +244,7 @@ herdr-bridge --config /path/to/config.json
 - 首版每个代理实例连接一个本地 core。需要连接另一个本地 core 时，用独立配置和状态路径运行另一个实例。
 - 默认本地身份状态位于 `~/.herdr-bridge/state/identity.json`；允许 `--state-dir` 指定独立目录。使用文件锁阻止同一状态目录启动多个实例。
 - Unix 下 auth 目录权限为 0700、配置文件为 0600；Windows 使用当前账号 ACL。配置内容与 Key 不进入日志或版本控制。
-- 当前以前台命令启动常驻进程；systemd、Windows 服务集成及安装脚本暂不实现。
+- 客户端默认后台运行，支持 start/stop/restart/status 和 --foreground；systemd、Windows 服务集成及安装脚本暂不实现。
 
 ## 5. HTTP 与 WebSocket 路由
 

@@ -27,6 +27,7 @@
       "program": "${workspaceFolder}/client",
       "cwd": "${workspaceFolder}",
       "args": [
+        "--foreground",
         "--config",
         "${workspaceFolder}/client.json",
         "--dev"
