@@ -588,13 +588,27 @@ export function Workspace({
   const spacesPanel = (
     <div className={styles.listPanel}>
       <header className={styles.sectionHead}>
-        <h2>Spaces</h2>
+        <h2>
+          <button className={styles.collapseToggle} aria-expanded={!view.spacesCollapsed}
+            onClick={() => setView((v) => ({ ...v, spacesCollapsed: !v.spacesCollapsed }))}>
+            <Icon name={view.spacesCollapsed ? "chevron-right" : "chevron-down"} size={14} />
+            Spaces
+          </button>
+        </h2>
       </header>
-      <div className={styles.scroll}>
+      <div className={styles.scroll} hidden={view.spacesCollapsed}>
         {[...new Set(["", ...machines.map((m) => m.name), ...spaces.map((s) => s.machine)])].sort().map((device) => (
           <React.Fragment key={device}>
             <div className={styles.groupTitle}>
-              {device || core?.machineName || "本机"}
+              <button className={styles.collapseToggle}
+                aria-label={`${device || core?.machineName || "本机"}的空间`}
+                aria-expanded={!view.collapsedDevices.includes(device)}
+                onClick={() => setView((v) => ({ ...v, collapsedDevices: v.collapsedDevices.includes(device)
+                  ? v.collapsedDevices.filter((d) => d !== device) : [...v.collapsedDevices, device] }))}>
+                <Icon name={view.collapsedDevices.includes(device) ? "chevron-right" : "chevron-down"} size={13} />
+                {device || core?.machineName || "本机"}
+                <span>{spaces.filter((s) => s.machine === device).length}</span>
+              </button>
               <button
                 className={styles.deviceAdd}
                 aria-label={`在 ${device || core?.machineName || "本机"} 新增会话`}
@@ -605,7 +619,7 @@ export function Workspace({
                 <Icon name="plus" />
               </button>
             </div>
-            {spaces.filter((s) => s.machine === device).map((s) => {
+            {!view.collapsedDevices.includes(device) && spaces.filter((s) => s.machine === device).map((s) => {
               const repo = repoFor(s),
                 shared = repo && isLinkedWorktree(repo) && spaces.some((x) => {
                   const main = repoFor(x);

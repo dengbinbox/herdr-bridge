@@ -409,3 +409,39 @@ it("shows a branch avatar only for a linked worktree with its main checkout list
   });
   expect(screen.getByRole("button", { name: "空间 Project Two" }).querySelector('span[aria-hidden="true"]')?.textContent).toBe("P");
 });
+
+it("collapses Spaces and device groups without detaching the selected terminal", async () => {
+  mount();
+  await screen.findByRole("button", { name: "空间 Project One" });
+  const terminal = screen.getByTestId("terminal:t1");
+  const device = screen.getByRole("button", { name: "当前机器的空间" });
+  fireEvent.click(device);
+  expect(device.getAttribute("aria-expanded")).toBe("false");
+  expect(screen.queryByRole("button", { name: "空间 Project One" })).toBeNull();
+  expect(screen.getByRole("button", { name: "在 当前机器 新增会话" })).toBeTruthy();
+  expect(screen.getByTestId("terminal:t1")).toBe(terminal);
+  fireEvent.click(device);
+  expect(screen.getByRole("button", { name: "空间 Project One" })).toBeTruthy();
+  const heading = screen.getByRole("button", { name: "Spaces" });
+  fireEvent.click(heading);
+  expect(heading.getAttribute("aria-expanded")).toBe("false");
+  expect(screen.queryByRole("button", { name: "当前机器的空间" })).toBeNull();
+  expect(screen.getByTestId("terminal:t1")).toBe(terminal);
+  fireEvent.click(heading);
+  expect(screen.getByRole("button", { name: "空间 Project One" })).toBeTruthy();
+});
+
+it("restores saved device folding independently of Agent groups", async () => {
+  fixture.api.mockResolvedValue({ version: 1, document: {
+    schemaVersion: 2, spaces: [], collapsedDevices: [""], collapsed: [], spacesCollapsed: false,
+  } });
+  mount();
+  await waitFor(() => expect(screen.getByRole("button", { name: "当前机器的空间" }).getAttribute("aria-expanded")).toBe("false"));
+  expect(screen.queryByRole("button", { name: "空间 Project One" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "当前机器的空间" }));
+  fireEvent.click(screen.getByRole("button", { name: "工作台操作" }));
+  fireEvent.click(screen.getByRole("button", { name: "保存布局" }));
+  await waitFor(() => expect(fixture.api).toHaveBeenCalledWith("/layouts/test", "PUT", expect.objectContaining({
+    document: expect.objectContaining({ collapsedDevices: [], spacesCollapsed: false }),
+  })));
+});

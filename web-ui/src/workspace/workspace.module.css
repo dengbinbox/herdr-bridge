@@ -1106,3 +1106,29 @@
 @media (max-width: 999px) {
   .actionsMenu summary { min-height: 38px; }
 }
+
+.workspace .collapseToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 3px 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+.groupTitle > .collapseToggle {
+  flex: 1;
+}
+.collapseToggle:hover {
+  color: #2867d8;
+}
+.collapseToggle:focus-visible {
+  outline: 2px solid #2867d8;
+  outline-offset: 3px;
+}
+.scroll[hidden] {
+  display: none;
+}

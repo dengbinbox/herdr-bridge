@@ -31,6 +31,8 @@ export type View = {
   inspector: "files" | "changes";
   grouped: boolean;
   collapsed: string[];
+  collapsedDevices: string[];
+  spacesCollapsed: boolean;
   sizes: Record<string, number>;
 };
 export const emptyView = (): View => ({
@@ -46,6 +48,8 @@ export const emptyView = (): View => ({
   inspector: "files",
   grouped: false,
   collapsed: [],
+  collapsedDevices: [],
+  spacesCollapsed: false,
   sizes: {},
 });
 export const obj = (v: unknown): Record<string, unknown> =>
@@ -239,9 +243,9 @@ export function readView(value: unknown): View | null {
   for (const [k, x] of Object.entries(obj(v.sizes)))
     if (typeof x === "number" && Number.isFinite(x) && x > 0 && x <= 100)
       out.sizes[k] = x;
-  for (const field of ["left", "right", "grouped"] as const)
+  for (const field of ["left", "right", "grouped", "spacesCollapsed"] as const)
     if (typeof v[field] === "boolean") out[field] = v[field];
-  for (const field of ["collapsed", "detached"] as const)
+  for (const field of ["collapsed", "detached", "collapsedDevices"] as const)
     if (Array.isArray(v[field]))
       out[field] = v[field]
         .filter((x): x is string => typeof x === "string")
